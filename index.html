@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>AIエージェント デモ</title>
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#fff; --line:#e7e5df; --line2:#d9d6ce;
+  --text:#1f1f1d; --muted:#6c6b66; --faint:#a3a19a;
+  --accent:#4f46e5; --accent-bg:#eef0ff;
+  --spA:#4f46e5; --spB:#0f9488;
+  --ok:#15803d; --ok-bg:#e7f6ec;
+  --todo:#b45309; --todo-bg:#fdf1de;
+  --hold:#52607a; --hold-bg:#ebeef4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+
+.app{display:grid;grid-template-rows:52px 1fr;height:100vh}
+.top{display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
+.top .name{font-weight:600}
+.top .ws{color:var(--muted);font-size:13px}
+.top .hint{margin-left:auto;color:var(--faint);font-size:12px}
+kbd{font-family:inherit;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;color:var(--muted);background:#fff}
+
+.main{display:grid;grid-template-columns:clamp(170px,14vw,220px) clamp(320px,28vw,420px) 1fr;min-height:0}
+
+/* sidebar */
+.side{background:var(--panel);border-right:1px solid var(--line);padding:16px 12px;overflow:auto}
+.grp{font-size:11px;color:var(--faint);letter-spacing:.08em;margin:14px 8px 6px}
+.grp:first-child{margin-top:0}
+.skill{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 10px;border-radius:8px;color:var(--muted);font-size:13px}
+.skill:hover{background:var(--bg)}
+.skill.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.skill .ic{width:22px;height:22px;border-radius:6px;background:var(--bg);display:grid;place-items:center;font-size:12px;flex:none}
+.skill.on .ic{background:#fff}
+.skill.soon{opacity:.55}
+
+/* chat */
+.chat{display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--panel);min-height:0}
+.thread{flex:1;overflow:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px}
+.empty{margin:auto 0;text-align:center;color:var(--muted)}
+.empty h2{font-size:17px;color:var(--text);margin-bottom:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;margin-top:14px;border:1px solid var(--line2);border-radius:999px;padding:6px 14px;font-size:13px;background:#fff}
+.chip:hover,.chip.on{border-color:var(--accent);color:var(--accent)}
+.chips{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:14px}
+.chips .chip{margin-top:0;min-width:220px;justify-content:center}
+.chip kbd{margin-left:6px}
+.next{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.next .chip{margin-top:0;padding:4px 10px;font-size:12px}
+.u{align-self:flex-end;max-width:88%;background:var(--bg);border-radius:14px 14px 4px 14px;padding:10px 14px}
+.file{display:flex;align-items:center;gap:8px;margin-top:6px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px}
+.file b{font-weight:600}
+.file span{color:var(--muted);margin-left:auto}
+.a{display:flex;gap:10px}
+.av{width:28px;height:28px;border-radius:8px;background:var(--accent);flex:none;display:grid;place-items:center}
+.a .body{flex:1;min-width:0}
+.logs{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.log{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--faint);transition:color .2s}
+.log .st{width:16px;height:16px;flex:none;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center}
+.log.run{color:var(--text)}
+.log.run .st{border-color:var(--accent);border-top-color:transparent;animation:spin .7s linear infinite}
+.log.done{color:var(--text)}
+.log.done .st{background:var(--ok);border-color:var(--ok)}
+.log.done .st::after{content:"";width:6px;height:3px;border-left:1.5px solid #fff;border-bottom:1.5px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.log .dt{margin-left:auto;font-size:12px;color:var(--muted);opacity:0;transition:opacity .3s;white-space:nowrap}
+.log.done .dt{opacity:1}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.fin{margin-top:4px;border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+.fin .hd{display:flex;align-items:baseline;gap:8px}
+.fin .hd b{font-size:15px;white-space:nowrap}
+.fin .hd span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.fin .hd .sec{flex:none;overflow:visible!important;margin-left:auto;font-size:22px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.bars{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.bar{display:grid;grid-template-columns:110px 1fr 44px;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.bar .tr{height:10px;background:var(--bg);border-radius:5px;overflow:hidden}
+.bar .fl{height:100%;width:0;background:#c9c6bd;border-radius:5px;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.bar.ag .fl{background:var(--accent)}
+.bar.ag{color:var(--accent);font-weight:600}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums}
+.bars .cap{font-size:11px;color:var(--faint)}
+.punch{margin-top:12px;display:grid;gap:6px}
+.punch div{display:flex;align-items:center;gap:8px;font-size:13px;background:var(--bg);border-radius:8px;padding:7px 10px}
+.punch s{color:var(--faint)}
+.punch .to{color:var(--accent);font-weight:700}
+.again{margin-top:10px;font-size:12px;color:var(--muted);text-decoration:underline}
+
+.composer{padding:12px 14px 14px;border-top:1px solid var(--line)}
+.box{border:1px solid var(--line2);border-radius:12px;padding:10px 12px;background:#fff;transition:border-color .2s}
+.box:focus-within{border-color:var(--accent)}
+.box textarea{width:100%;border:0;outline:0;resize:none;font:inherit;height:44px;color:var(--text);background:transparent}
+.box .row{display:flex;align-items:center;gap:8px}
+.box .att{font-size:12px;color:var(--muted);display:none;align-items:center;gap:6px;background:var(--bg);border-radius:6px;padding:3px 8px}
+.box .att.show{display:inline-flex}
+.go{margin-left:auto;background:var(--text);color:#fff;border-radius:8px;padding:6px 16px;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+.go:disabled{background:var(--line2);cursor:default}
+.go.pulse{animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(79,70,229,.45)}50%{box-shadow:0 0 0 7px rgba(79,70,229,0)}}
+
+/* canvas */
+.cv{display:flex;flex-direction:column;min-height:0;padding:16px 20px;gap:12px}
+.cvh{display:flex;align-items:center;gap:10px}
+.cvh .t{font-weight:600}
+.cvh .st{font-size:12px;color:var(--muted)}
+.badge{font-size:11px;font-weight:700;color:#fff;background:var(--ok);border-radius:999px;padding:2px 10px;opacity:0;transform:scale(.6);transition:all .35s cubic-bezier(.3,1.6,.5,1)}
+.badge.on{opacity:1;transform:none}
+.timer{margin-left:auto;font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted)}
+.timer b{font-size:18px;color:var(--text)}
+/* キャンバスは固定サイズで組み、画面に合わせて拡大縮小する（見切れ防止） */
+.fit{flex:1;min-height:0;position:relative;overflow:hidden}
+.stage{position:absolute;left:0;top:0;width:760px;height:700px;transform-origin:0 0}
+.placeholder{pointer-events:none;position:absolute;inset:0;border:1.5px dashed var(--line2);border-radius:14px;display:grid;place-items:center;color:var(--faint);text-align:center;transition:opacity .3s}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;opacity:0;transform:translateY(8px);transition:opacity .35s,transform .35s}
+.card.in{opacity:1;transform:none}
+.card .lb{font-size:11px;color:var(--faint);letter-spacing:.06em;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.card .lb .open{margin-left:auto;font-size:12px;color:var(--accent);letter-spacing:0;display:none}
+.done .card .lb .open{display:inline}
+
+/* ① 会議まるごと */
+.mt{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;height:100%}
+.wave{position:relative;height:46px;display:flex;align-items:center;gap:2px}
+.wave i{flex:1;background:var(--line2);border-radius:2px;height:0;transition:height .25s,background .4s}
+.wave .ph{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--accent);left:0;opacity:0}
+.wave .ph.sweep{opacity:1;animation:sweep 2.2s linear forwards}
+@keyframes sweep{to{left:100%}}
+.legend{display:flex;gap:14px;font-size:11px;color:var(--muted);opacity:0;transition:opacity .3s}
+.legend.in{opacity:1}
+.legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:0}
+.legend .la::before{background:var(--spA)}
+.legend .lbb::before{background:var(--spB)}
+.mid{display:grid;grid-template-columns:1.15fr 1fr;gap:12px;min-height:0}
+.mid .card{overflow:hidden;min-height:0}
+.ts{display:flex;flex-direction:column;gap:5px;overflow:hidden}
+.ln{display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:start;font-size:12.5px;opacity:0;transform:translateX(-6px);transition:opacity .25s,transform .25s}
+.ln.in{opacity:1;transform:none}
+.ln .who{font-weight:700;font-size:12px}
+.ln .who.A{color:var(--spA)} .ln .who.B{color:var(--spB)}
+.ln .tm{display:block;font-weight:400;font-size:10px;color:var(--faint)}
+.tag{font-size:11px;font-weight:700;border-radius:5px;padding:1px 7px;white-space:nowrap;opacity:0;transform:scale(.5);transition:all .3s cubic-bezier(.3,1.6,.5,1)}
+.tag.in{opacity:1;transform:none}
+.tag.k{color:var(--ok);background:var(--ok-bg)}
+.tag.s{color:var(--todo);background:var(--todo-bg)}
+.tag.h{color:var(--hold);background:var(--hold-bg)}
+.mn h3{font-size:15px;margin-bottom:2px}
+.mn .meta{font-size:11px;color:var(--muted);margin-bottom:8px}
+.sec{margin-bottom:8px}
+.sec .sh{font-size:11px;font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:6px;opacity:0;transition:opacity .25s}
+.sec ul{list-style:none;display:flex;flex-direction:column;gap:2px}
+.sec li{font-size:12.5px;padding-left:10px;position:relative;opacity:0;transition:opacity .25s}
+.sec li::before{content:"";position:absolute;left:0;top:.7em;width:4px;height:4px;border-radius:50%;background:var(--faint)}
+.sec li.in,.sec .sh.in{opacity:1}
+.sec li em{font-style:normal;color:var(--muted);font-size:11.5px}
+.slides{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+/* 報告スライド：960×540で組み、サムネイルと拡大表示は縮尺だけ変える */
+.slwrap{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:8px;border:1px solid var(--line);background:#fff}
+.sl{opacity:0;transform:scale(.92);transition:opacity .35s,transform .35s cubic-bezier(.3,1.4,.5,1)}
+.sl.in{opacity:1;transform:none}
+.done .sl{cursor:pointer}
+.done .sl:hover{border-color:var(--accent)}
+.slide{position:absolute;left:0;top:0;width:960px;height:540px;transform-origin:0 0;background:#fff;color:#1f1f1d;overflow:hidden;line-height:1.45}
+.s-hd{position:absolute;left:56px;right:56px;top:40px}
+.s-kick{font-size:15px;font-weight:700;color:#4f46e5;letter-spacing:.1em}
+.s-h{font-size:29px;font-weight:800;line-height:1.4;margin-top:6px}
+.s-ft{position:absolute;left:56px;right:44px;bottom:20px;display:flex;font-size:12px;color:#a3a19a}
+.s-ft span:last-child{margin-left:auto}
+.s-acc{position:absolute;left:0;top:0;bottom:0;width:10px;background:#4f46e5}
+.s-panel{position:absolute;top:172px;height:290px;background:#f7f7fb;border-radius:16px;padding:20px 24px}
+.s-pt{font-size:15px;font-weight:700;color:#55546a}
+.grow{transform:scaleY(0);transform-origin:bottom;transition:transform .8s cubic-bezier(.2,.8,.2,1) .25s}
+.growx{transform:scaleX(0);transform-origin:left;transition:transform 1s cubic-bezier(.2,.8,.2,1) .2s}
+.pop{opacity:0;transform:translateY(8px);transition:all .45s ease .6s}
+.in .grow,.in .growx{transform:none}
+.in .pop{opacity:1;transform:none}
+.donut{stroke-dasharray:0 440;transition:stroke-dasharray 1s cubic-bezier(.2,.8,.2,1) .3s}
+.in .donut{stroke-dasharray:176 440}
+
+/* ② リール量産 */
+.rl{display:grid;grid-template-columns:316px 1fr;gap:12px;height:100%}
+.rl-pc{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.rl-pc .lb{align-self:stretch}
+.rl-phone{width:290px;height:516px;border-radius:36px;background:#141414;padding:8px;cursor:default}
+.done .rl-phone{cursor:pointer}
+.rl-screen{position:relative;width:100%;height:100%;border-radius:28px;overflow:hidden;background:#2a2a2a;color:#fff}
+.rl-scene{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity .4s}
+.rl-scene span{font-size:120px;filter:drop-shadow(0 10px 20px rgba(0,0,0,.25))}
+.rl-scene.on{opacity:1}
+.rl-scene.on span{animation:kb 1.6s ease-out both}
+@keyframes kb{from{transform:scale(1.18) translateY(10px)}to{transform:none}}
+.rl-prog{position:absolute;top:12px;left:12px;right:12px;display:flex;gap:4px;z-index:2}
+.rl-prog span{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.35);overflow:hidden}
+.rl-prog i{display:block;height:100%;width:0;background:#fff}
+.rl-prog span.full i{width:100%}
+.rl-prog span.cur i{animation:fill 1.3s linear forwards}
+@keyframes fill{to{width:100%}}
+.rl-telop{position:absolute;left:14px;right:14px;top:58%;text-align:center;z-index:2;opacity:0;transform:translateY(10px) scale(.95);transition:all .3s cubic-bezier(.3,1.5,.5,1)}
+.rl-telop.on{opacity:1;transform:none}
+.rl-telop b{display:inline;font-size:21px;font-weight:800;line-height:1.7;background:#fff;color:#1f1f1d;padding:2px 10px;border-radius:6px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.rl-rail{position:absolute;right:10px;bottom:120px;display:flex;flex-direction:column;gap:14px;align-items:center;font-size:18px;z-index:2}
+.rl-rail span{display:flex;flex-direction:column;align-items:center}
+.rl-rail b{font-size:10px;font-weight:600}
+.rl-meta{position:absolute;left:14px;right:56px;bottom:16px;z-index:2;font-size:12px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.rl-meta .c1{font-size:11px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rl-bgm{display:inline-block;margin-top:6px;font-size:11px;background:rgba(0,0,0,.35);border-radius:999px;padding:2px 10px;opacity:0;transition:opacity .4s}
+.rl-bgm.on{opacity:1}
+.rl-load{position:absolute;inset:0;display:grid;place-items:center;font-size:13px;color:#bbb;background:#2a2a2a;z-index:3;transition:opacity .4s}
+.rl-load.off{opacity:0}
+.rl-paused{position:absolute;inset:0;display:grid;place-items:center;font-size:48px;z-index:4;opacity:0;transition:opacity .2s;pointer-events:none}
+.rl-paused.on{opacity:.85}
+.rl-right{display:flex;flex-direction:column;gap:12px;min-width:0}
+.rl-dur{margin-left:auto;font-size:20px;font-weight:800;color:var(--text);letter-spacing:0;font-variant-numeric:tabular-nums;transition:color .3s}
+.rl-dur.hit{color:var(--accent)}
+.rl-row{display:grid;grid-template-columns:48px 1fr;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-top:8px}
+.rl-src{display:flex;gap:4px;height:24px}
+.rl-clip{display:flex;height:100%;border-radius:4px;overflow:hidden;opacity:0;transform:translateY(4px);transition:opacity .3s,transform .3s}
+.rl-clip.in{opacity:1;transform:none}
+.rl-v{height:100%;transition:width .6s cubic-bezier(.2,.8,.2,1),opacity .4s,box-shadow .3s}
+.rl-g{height:100%;background:repeating-linear-gradient(45deg,#cfccc3 0 3px,#f3f2ee 3px 6px);transition:width .6s cubic-bezier(.2,.8,.2,1),background .3s}
+.rl-g.hot{background:repeating-linear-gradient(45deg,#f2a3a3 0 3px,#fdeaea 3px 6px)}
+.rl-g.cut{width:0!important}
+.rl-v.dim{opacity:.18}
+.rl-v.pick{box-shadow:inset 0 0 0 2px #1f1f1d}
+.rl-out .rl-row{opacity:0;transition:opacity .3s}
+.rl-out .rl-row.in{opacity:1}
+.rl-vt{display:flex;gap:3px;height:24px}
+.rl-vt i{border-radius:4px;transform:scaleX(0);transform-origin:left;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.rl-vt i.in{transform:none}
+.rl-tt{display:flex;gap:3px}
+.rl-tt span{font-size:10.5px;color:var(--text);background:#fff7d6;border:1px solid #f0d77a;border-radius:4px;padding:0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transform:scale(.7);transition:all .3s cubic-bezier(.3,1.5,.5,1)}
+.rl-tt span.in{opacity:1;transform:none}
+.rl-bt{display:flex;align-items:center;gap:2px;height:24px}
+.rl-bt i{flex:1;background:#a5a1d8;border-radius:1px;height:0;transition:height .3s}
+.rl-ths{display:flex;gap:12px}
+.rl-thw{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted);opacity:0;transform:translateY(8px) scale(.9);transition:all .35s cubic-bezier(.3,1.4,.5,1)}
+.rl-thw.in{opacity:1;transform:none}
+.rl-th{width:86px;aspect-ratio:9/16;border-radius:8px;overflow:hidden;position:relative;display:grid;place-items:center}
+.done .rl-th{cursor:pointer}
+.rl-th .e{font-size:40px;margin-bottom:45%}
+.rl-th .t{position:absolute;left:6px;right:6px;bottom:10px;font-size:12px;font-weight:800;line-height:1.35;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.45)}
+.rl-th .t em{font-style:normal;background:#ffe14d;color:#1f1f1d;padding:0 3px;text-shadow:none}
+.rl-th.big{width:260px}
+.rl-th.big .e{font-size:110px}
+.rl-th.big .t{font-size:30px;bottom:30px;left:16px;right:16px}
+.rl-cap{font-size:12.5px;line-height:1.7;opacity:0;transition:opacity .4s}
+.rl-cap.in{opacity:1}
+.rl-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.rl-tags span{font-size:11.5px;color:#2563eb;background:#eff4ff;border-radius:999px;padding:1px 9px;opacity:0;transform:scale(.7);transition:all .3s cubic-bezier(.3,1.5,.5,1)}
+.rl-tags span.in{opacity:1;transform:none}
+
+/* ③ 経費精算 */
+.ex-win{height:100%;padding:0;display:flex;flex-direction:column;overflow:hidden}
+.ex-bar{display:flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-bottom:1px solid var(--line);background:#faf9f7;font-size:12px;color:var(--muted)}
+.ex-bar i{width:10px;height:10px;border-radius:50%;background:#e5e3dc}
+.ex-bar i:nth-child(1){background:#f87171}.ex-bar i:nth-child(2){background:#fbbf24}.ex-bar i:nth-child(3){background:#34d399}
+.ex-bar span{margin-left:10px}
+.ex-body{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:12px;min-height:0}
+.ex-b{border-radius:10px;transition:background .35s,color .35s,border-color .35s}
+.ex-b:not(.on){background:#efede7!important;border-color:transparent!important;color:transparent!important}
+.ex-b:not(.on) *{visibility:hidden}
+.ex-head{display:flex;align-items:baseline;gap:12px;padding:4px 2px}
+.ex-head b{font-size:20px;font-weight:800;color:#0f766e}
+.ex-head span{font-size:12px;color:var(--muted)}
+.ex-head .n{margin-left:auto;font-size:11px;background:#e6f4f1;color:#0f766e;border-radius:999px;padding:1px 10px;font-weight:600}
+.ex-lbl{font-size:11px;color:var(--faint);margin-bottom:6px}
+.ex-rcs{padding:10px 12px;border:1px solid var(--line)}
+.ex-rcl{display:flex;gap:10px}
+.ex-rc{flex:1;position:relative;background:#fff;border:1px solid var(--line2);border-radius:3px;padding:7px 9px 9px;font-size:10px;display:flex;flex-direction:column;line-height:1.45;transition:all .3s}
+.ex-rc b{font-size:11px}
+.ex-rc span{color:var(--muted)}
+.ex-rc em{font-style:normal;font-weight:700;font-size:12px;margin-top:3px;border-top:1px dashed var(--line2);padding-top:3px}
+.ex-rc.read{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg);transform:translateY(-3px)}
+.ex-rc.used{opacity:.5}
+.ex-rc.used::after{content:"✓ 登録";position:absolute;top:6px;right:7px;font-size:10px;font-weight:700;color:var(--ok)}
+.ex-main{flex:1;display:grid;grid-template-columns:1.3fr 1fr;gap:12px;min-height:0}
+.ex-left,.ex-right{display:flex;flex-direction:column;gap:12px;min-height:0}
+.ex-form{border:1px solid var(--line);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.ex-fr{display:grid;gap:8px}
+.ex-f{display:flex;flex-direction:column;gap:2px;font-size:10.5px;color:var(--muted)}
+.ex-f input,.ex-f select{height:30px;border:1px solid var(--line2);border-radius:6px;padding:0 8px;font:inherit;font-size:12.5px;color:var(--text);background:#fff;min-width:0}
+.ex-f input:disabled,.ex-f select:disabled{background:#faf9f7;color:var(--muted)}
+.ex-add{align-self:end;height:30px;padding:0 16px;border-radius:6px;background:#0f766e;color:#fff;font-weight:700;font-size:12.5px}
+.ex-add:disabled{background:#cfe3df;cursor:default}
+.done .ex-add:not(:disabled){animation:pulseG 1.4s ease-in-out infinite}
+@keyframes pulseG{0%,100%{box-shadow:0 0 0 0 rgba(15,118,110,.45)}50%{box-shadow:0 0 0 6px rgba(15,118,110,0)}}
+.ex-tbl{flex:1;border:1px solid var(--line);overflow:hidden}
+.ex-tbl table{width:100%;border-collapse:collapse;font-size:12px}
+.ex-tbl th{font-size:10.5px;color:var(--faint);font-weight:500;text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+.ex-tbl td{padding:6px 10px;border-bottom:1px solid #f1efea;white-space:nowrap}
+.ex-tbl td:last-child,.ex-tbl th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.ex-tbl td small{color:var(--muted);font-size:11px}
+.ex-tbl tr.new{animation:flash 1s ease}
+@keyframes flash{from{background:#eef0ff}to{background:transparent}}
+.cat{font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 6px;white-space:nowrap}
+.cat.c0{background:#eef0ff;color:#4338ca}.cat.c1{background:#e6f4f1;color:#0f766e}.cat.c2{background:#fdf1de;color:#b45309}.cat.c3{background:#fbe9ee;color:#be185d}
+.ex-sum{flex:1;border:1px solid var(--line);padding:12px 14px;display:flex;flex-direction:column}
+.ex-srow{display:grid;grid-template-columns:78px 1fr 72px;align-items:center;gap:8px;margin-top:10px;font-size:12px}
+.ex-srow .tr{height:14px;background:#f3f2ee;border-radius:4px;overflow:hidden}
+.ex-srow .fl{height:100%;width:0;border-radius:4px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.ex-srow .v{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.ex-total{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);display:flex;align-items:baseline;font-size:12px;color:var(--muted)}
+.ex-total b{margin-left:auto;font-size:22px;color:var(--text);font-variant-numeric:tabular-nums}
+.ex-chk{border:1px solid var(--line);padding:12px 14px;font-size:12px}
+.ex-chk .r{display:flex;justify-content:space-between;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+.ex-chk .r b{color:var(--text)}
+.ex-chk .res{margin-top:8px;text-align:center;font-weight:700;border-radius:8px;padding:5px;background:#f3f2ee;color:var(--faint);transition:all .3s}
+.ex-chk .res.ok{background:var(--ok-bg);color:var(--ok)}
+
+/* modal */
+.mask{position:fixed;inset:0;background:rgba(20,20,18,.45);display:none;place-items:center;z-index:10}
+.mask.on{display:grid}
+.modal{background:#fff;border-radius:14px;width:min(860px,92vw);max-height:90vh;overflow:auto;padding:26px 30px;position:relative}
+.modal .x{position:absolute;top:8px;right:12px;font-size:20px;color:var(--muted);z-index:2}
+.modal h2{font-size:20px;margin-bottom:2px}
+.modal .meta{color:var(--muted);font-size:13px;margin-bottom:16px}
+.modal .sec .sh,.modal .sec li{opacity:1}
+.modal .sec li{font-size:14px}
+.modal .sec .sh{font-size:13px;margin-top:6px}
+.modal .slwrap{border-radius:10px}
+.nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:14px;color:var(--muted);font-size:13px}
+.nav button{border:1px solid var(--line2);border-radius:8px;padding:4px 14px}
+.gal-c{display:flex;justify-content:center}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);background:var(--text);color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:20}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="logo"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" fill="#fff"/><circle cx="8" cy="8" r="6.5" stroke="#fff" stroke-width="1.3" opacity=".6"/></svg></div>
+    <span class="name">My Agent</span>
+    <span class="ws">あなたのワークスペース</span>
+    <span class="hint"><kbd>1</kbd>〜<kbd>3</kbd> スキル切替　<kbd>Enter</kbd> 実行　<kbd>R</kbd> リセット</span>
+  </header>
+
+  <div class="main">
+    <nav class="side">
+      <div class="grp">ビジネス</div>
+      <button class="skill" data-skill="meeting"><span class="ic">🎙</span>会議まるごと</button>
+      <div class="grp">副業</div>
+      <button class="skill" data-skill="reel"><span class="ic">🎬</span>リール量産</button>
+      <button class="skill" data-skill="expense"><span class="ic">🧾</span>経費精算</button>
+      <div class="grp">経営（仮）</div>
+      <button class="skill soon" data-skill="soon"><span class="ic">・</span>準備中</button>
+      <button class="skill soon" data-skill="soon"><span class="ic">・</span>準備中</button>
+    </nav>
+
+    <section class="chat">
+      <div class="thread" id="thread"></div>
+      <div class="composer">
+        <div class="box">
+          <textarea id="inp" placeholder="エージェントに頼みたいことを入力"></textarea>
+          <div class="row">
+            <span class="att" id="att"></span>
+            <button class="go" id="go" disabled>実行 <span>↵</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cv" id="cv">
+      <div class="cvh">
+        <span class="t">キャンバス</span>
+        <span class="st" id="cvst">待機中</span>
+        <span class="badge" id="badge">完成</span>
+        <span class="timer">経過 <b id="tm">0.0</b> 秒</span>
+      </div>
+      <div class="fit" id="fit"><div class="stage" id="stage"></div></div>
+    </section>
+  </div>
+</div>
+
+<div class="mask" id="mask"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const thread=$("thread"), inp=$("inp"), go=$("go"), att=$("att"), stage=$("stage"), cv=$("cv");
+const q = s => stage.querySelector(s), qa = s => [...stage.querySelectorAll(s)];
+const yen = n => "¥" + n.toLocaleString();
+let timers=[], raf=0, t0=0, state="idle", cur="meeting", G=null;
+const at=(ms,fn)=>timers.push(setTimeout(fn,ms));
+const PH = `<div class="placeholder" id="ph"><div><div style="font-size:28px">✦</div>ここに成果物が組み上がります</div></div>`;
+
+// =====================================================================
+// ① 会議まるごとスキル
+// =====================================================================
+const MT_LINES = [
+  ["A","山田","02:14","来期の販促予算は、今期と同じ600万円で据え置きにします。","k"],
+  ["B","佐藤","05:40","展示会の見積もりは、来週金曜までに私が取ります。","s"],
+  ["A","山田","11:02","新しい代理店との契約は、法務の確認を待ってから判断で。","h"],
+  ["B","佐藤","18:27","Web広告は、月20万円の枠で継続ですね。","k"],
+  ["A","山田","24:51","顧客アンケートの集計、田中さんに頼めるか確認しておきます。","s"],
+  ["B","佐藤","33:09","価格改定の話は、次回に持ち越しましょう。","h"],
+  ["A","山田","44:36","次回は11月13日（金）10時からにします。","k"],
+];
+const TAGNAME = {k:"決定", s:"宿題", h:"保留"};
+const MT_MIN = {
+  k: ["来期の販促予算は600万円で据え置き", "Web広告は月20万円の枠で継続", "次回会議は11月13日（金）10:00"],
+  s: ["展示会の見積もり取得<em>　佐藤・11月6日（金）まで</em>", "アンケート集計を田中さんに依頼できるか確認<em>　山田・11月4日（水）まで</em>"],
+  h: ["新規代理店との契約<em>　法務の確認待ち</em>", "価格改定<em>　次回の会議で再検討</em>"],
+};
+const SLIDE_FT = (n,dark) => `<div class="s-ft" style="${dark?"color:#818cf8":""}"><span>2026年10月30日　営業企画部 部門会議</span><span>${n} / 3　｜　My Agentで自動生成</span></div>`;
+const MT_SLIDES = [
+  // 1. 表紙
+  `<div class="slide" style="background:#1e1b4b;color:#fff">
+    <svg width="460" height="540" style="position:absolute;right:-70px;top:0" viewBox="0 0 460 540">
+      <circle cx="300" cy="140" r="190" fill="#312e81"/><circle cx="380" cy="400" r="150" fill="#4338ca" opacity=".55"/>
+      <circle cx="200" cy="330" r="96" fill="none" stroke="#818cf8" stroke-width="2" opacity=".6"/>
+      <circle cx="200" cy="330" r="10" fill="#a5b4fc"/></svg>
+    <div style="position:absolute;left:72px;top:96px">
+      <div class="s-kick" style="color:#a5b4fc">営業企画部 ｜ 部長報告</div>
+      <div style="font-size:56px;font-weight:800;line-height:1.25;margin-top:14px">10月 部門会議<br>報告</div>
+      <div style="font-size:19px;color:#c7d2fe;margin-top:14px">販促予算・展示会・価格改定の決定事項</div>
+    </div>
+    <div class="pop" style="position:absolute;left:72px;top:372px;display:flex;gap:16px">
+      ${[["3","決定","#4ade80"],["2","宿題","#fbbf24"],["2","保留","#cbd5e1"]].map(k=>`<div style="width:132px;padding:12px 18px;border-radius:14px;background:rgba(255,255,255,.08)"><div style="font-size:40px;font-weight:800;color:${k[2]};line-height:1.1">${k[0]}<span style="font-size:16px;margin-left:4px">件</span></div><div style="font-size:14px;color:#c7d2fe">${k[1]}</div></div>`).join("")}
+    </div>
+    ${SLIDE_FT(1,true)}
+  </div>`,
+  // 2. 結論（グラフ）
+  `<div class="slide"><div class="s-acc"></div>
+    <div class="s-hd"><div class="s-kick">結論</div><div class="s-h">来期の販促予算は600万円で据え置き。<br>うち4割をWeb広告に継続投下する</div></div>
+    <div class="s-panel" style="left:56px;width:400px">
+      <div class="s-pt">販促予算（年間）</div>
+      <div style="position:absolute;top:18px;right:20px;font-size:13px;font-weight:700;color:#15803d;background:#e7f6ec;border-radius:999px;padding:3px 12px">±0　据え置き</div>
+      <div style="display:flex;justify-content:center;align-items:flex-end;gap:56px;height:210px;margin-top:20px">
+        ${[["今期","#c7c9d9"],["来期","#4f46e5"]].map(b=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="font-size:20px;font-weight:800">600<span style="font-size:13px">万円</span></div><div class="grow" style="width:96px;height:150px;border-radius:8px 8px 0 0;background:${b[1]}"></div><div style="font-size:14px;font-weight:700;color:#55546a">${b[0]}</div></div>`).join("")}
+      </div>
+    </div>
+    <div class="s-panel" style="left:480px;width:424px">
+      <div class="s-pt">うちWeb広告の割合</div>
+      <svg width="180" height="180" viewBox="0 0 180 180" style="position:absolute;left:24px;top:76px">
+        <circle cx="90" cy="90" r="70" fill="none" stroke="#e0e2f0" stroke-width="34"/>
+        <circle class="donut" cx="90" cy="90" r="70" fill="none" stroke="#4f46e5" stroke-width="34" transform="rotate(-90 90 90)"/>
+        <text x="90" y="92" text-anchor="middle" font-size="30" font-weight="800" fill="#1f1f1d">40%</text>
+        <text x="90" y="114" text-anchor="middle" font-size="12" fill="#6c6b66">Web広告</text></svg>
+      <div class="pop" style="position:absolute;left:228px;top:96px;display:flex;flex-direction:column;gap:18px">
+        <div><div style="font-size:13px;color:#55546a"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#4f46e5;margin-right:6px"></span>Web広告</div><div style="font-size:26px;font-weight:800">240<span style="font-size:14px">万円</span></div><div style="font-size:12px;color:#6c6b66">月20万円 × 12か月</div></div>
+        <div><div style="font-size:13px;color:#55546a"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e0e2f0;margin-right:6px"></span>その他の販促</div><div style="font-size:26px;font-weight:800">360<span style="font-size:14px">万円</span></div></div>
+      </div>
+    </div>
+    ${SLIDE_FT(2)}
+  </div>`,
+  // 3. 次のアクション（図解）
+  `<div class="slide"><div class="s-acc"></div>
+    <div class="s-hd"><div class="s-kick">次のアクション</div><div class="s-h">宿題2件は11/6までに完了、保留2件は次回会議で判断</div></div>
+    <div style="position:absolute;left:96px;right:96px;top:206px;height:4px;background:#e0e2f0;border-radius:2px"></div>
+    <div class="growx" style="position:absolute;left:96px;right:96px;top:206px;height:4px;background:#4f46e5;border-radius:2px"></div>
+    ${[[96,"10/30","#4f46e5"],[350,"11/4","#b45309"],[590,"11/6","#b45309"],[864,"11/13","#4f46e5"]].map(n=>`<div style="position:absolute;left:${n[0]-9}px;top:199px;width:18px;height:18px;border-radius:50%;background:#fff;border:4px solid ${n[2]}"></div><div style="position:absolute;left:${n[0]-40}px;width:80px;top:166px;text-align:center;font-size:16px;font-weight:800;color:${n[2]}">${n[1]}</div>`).join("")}
+    <div style="position:absolute;left:56px;top:236px;font-size:14px;color:#6c6b66;font-weight:700">本日<br>部門会議</div>
+    ${[[255,"宿題","#fdf1de","#b45309","アンケート集計の<br>依頼を確認","担当　山田"],[495,"宿題","#fdf1de","#b45309","展示会の<br>見積もりを取得","担当　佐藤"],[714,"次回会議","#eef0ff","#4338ca","保留2件を<br>再検討して判断","11/13（金）10:00"]].map(c=>`<div class="pop" style="position:absolute;left:${c[0]}px;top:236px;width:190px;background:#fff;border:1px solid #e7e5df;border-radius:12px;padding:12px 14px;box-shadow:0 4px 14px rgba(0,0,0,.05)"><span style="font-size:12px;font-weight:700;background:${c[2]};color:${c[3]};border-radius:5px;padding:1px 8px">${c[1]}</span><div style="font-size:16px;font-weight:800;margin-top:6px;line-height:1.35">${c[4]}</div><div style="font-size:12px;color:#6c6b66;margin-top:4px">${c[5]}</div></div>`).join("")}
+    <div style="position:absolute;left:56px;top:384px;font-size:14px;font-weight:700;color:#52607a">保留（次回判断）</div>
+    ${[[56,"新規代理店との契約","法務の確認待ち"],[494,"価格改定","次回の会議で再検討"]].map(h=>`<div style="position:absolute;left:${h[0]}px;top:412px;width:410px;background:#ebeef4;border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:14px"><span style="font-size:22px">⏸</span><div><div style="font-size:16px;font-weight:800">${h[1]}</div><div style="font-size:13px;color:#52607a">${h[2]}</div></div></div>`).join("")}
+    ${SLIDE_FT(3)}
+  </div>`,
+];
+
+const SC = {};
+SC.meeting = {
+  name:"会議まるごとスキル", icon:"🎙",
+  prompt:"この部門会議の録音を入れて、議事録と、部長に出す報告スライドまで作って。",
+  attach:"📎 部門会議_1030.m4a　46:12",
+  files:[["🎙","部門会議_1030.m4a","46:12"]],
+  intro:"了解しました。録音から議事録と報告スライドまで作ります。",
+  logs:[["音声を読み込み","46分12秒"],["文字起こし中…話者2名を分離","7発言"],["決定・宿題・保留に仕分け","3・2・2件"],["議事録を1枚に整形","A4 1枚"],["報告スライドを生成","3枚"]],
+  status:"議事録1枚・スライド3枚", sub:"議事録・報告スライド",
+  before:[["録音を聞き直す",45],["議事録を書く",40],["報告書を作る",60]], agent:3,
+  punch:[`45分の会議 → 議事録 <s>40分</s> <span class="to">3分</span>`, `報告書づくり <s>2時間</s> → <span class="to">0分</span>`],
+  build(){
+    const bars = Array.from({length:84},(_,i)=>{
+      const h = 18 + Math.round(70*Math.abs(Math.sin(i*0.62)*Math.cos(i*0.17+1)) + 12*Math.abs(Math.sin(i*2.3)));
+      return `<i data-h="${Math.min(h,100)}" data-sp="${Math.floor(i/12)%2===0?"A":"B"}"></i>`;
+    }).join("");
+    const lines = MT_LINES.map(l=>`<div class="ln"><span class="who ${l[0]}">${l[1]}<span class="tm">${l[2]}</span></span><span>${l[3]}</span><span class="tag ${l[4]}">${TAGNAME[l[4]]}</span></div>`).join("");
+    const sec = k => `<div class="sec"><div class="sh"><span class="tag ${k} in">${TAGNAME[k]}</span></div><ul>${MT_MIN[k].map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+    return PH + `<div class="mt">
+    <div class="card" id="cWave"><div class="lb">録音　部門会議_1030.m4a<span class="legend" id="lg"><span class="la">山田</span><span class="lbb">佐藤</span></span></div>
+      <div class="wave">${bars}<div class="ph" id="playhead"></div></div></div>
+    <div class="mid">
+      <div class="card" id="cTs"><div class="lb">文字起こし</div><div class="ts">${lines}</div></div>
+      <div class="card mn" id="cMn"><div class="lb">議事録<button class="open" data-open="minutes">開く ↗</button></div>
+        <h3>部門会議 議事録</h3><div class="meta">2026年10月30日　参加：山田・佐藤</div>
+        ${sec("k")}${sec("s")}${sec("h")}</div>
+    </div>
+    <div class="card" id="cSl"><div class="lb">報告スライド（部長向け）<button class="open" data-open="slide0">開く ↗</button></div>
+      <div class="slides">${MT_SLIDES.map((s,i)=>`<div class="slwrap sl" data-open="slide${i}">${s}</div>`).join("")}</div></div></div>`;
+  },
+  play(L){
+    const bars=qa(".wave i"), lines=qa(".ln"), tags=qa(".ts .tag"), mn=qa("#cMn .sh, #cMn li"), sls=qa(".sl");
+    at(300, ()=>{ L(0,"run"); q("#cWave").classList.add("in"); });
+    bars.forEach((b,i)=>at(300+i*8, ()=>b.style.height=b.dataset.h+"%"));
+    at(1500, ()=>{ L(0,"done"); L(1,"run");
+      bars.forEach(b=>b.style.background = b.dataset.sp==="A"?"var(--spA)":"var(--spB)");
+      q("#lg").classList.add("in"); q("#playhead").classList.add("sweep"); q("#cTs").classList.add("in"); });
+    lines.forEach((l,i)=>at(1700+i*320, ()=>l.classList.add("in")));
+    at(4000, ()=>{ L(1,"done"); L(2,"run"); });
+    tags.forEach((t,i)=>at(4150+i*150, ()=>t.classList.add("in")));
+    at(5400, ()=>{ L(2,"done"); L(3,"run"); q("#cMn").classList.add("in"); });
+    mn.forEach((m,i)=>at(5600+i*110, ()=>m.classList.add("in")));
+    at(7000, ()=>{ L(3,"done"); L(4,"run"); q("#cSl").classList.add("in"); });
+    sls.forEach((s,i)=>at(7200+i*450, ()=>s.classList.add("in")));
+    return 8700;
+  },
+  open(key){
+    if(key==="minutes"){
+      const sec=k=>`<div class="sec"><div class="sh"><span class="tag ${k} in">${TAGNAME[k]}</span></div><ul>${MT_MIN[k].map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+      return {items:[`<h2>部門会議 議事録</h2>
+        <div class="meta">2026年10月30日（金）　参加：山田（課長）・佐藤（主任）　録音 46分12秒</div>
+        ${sec("k")}${sec("s")}${sec("h")}
+        <div class="sec"><div class="sh">発言の記録</div><ul>${MT_LINES.map(l=>`<li><em>${l[2]} ${l[1]}</em>　${l[3]}</li>`).join("")}</ul></div>`], i:0};
+    }
+    return {items:MT_SLIDES.map(s=>`<div class="slwrap">${s}</div>`), i:+key.replace("slide","")};
+  },
+};
+
+// =====================================================================
+// ② リール量産スキル
+// =====================================================================
+const RL_SCENES = [
+  {bg:"linear-gradient(160deg,#fbe3b8,#e8a33d)", emo:"🥖", c:"#e8a33d", telop:"週末だけ開く<br>小さなパン屋"},
+  {bg:"linear-gradient(160deg,#fbd3db,#d9667b)", emo:"🥐", c:"#d9667b", telop:"仕込みは<br>朝4時から"},
+  {bg:"linear-gradient(160deg,#cdeee7,#3b9c8f)", emo:"🧺", c:"#3b9c8f", telop:"焼きたては<br>10時に並びます"},
+];
+// 素材の秒数（v=映像, g=無音）。計258秒＝4分18秒、無音の合計38秒
+const RL_CLIPS = [
+  [["v",34,1],["g",9],["v",41],["g",8]],
+  [["v",28],["g",7],["v",40,1],["g",6]],
+  [["v",38,1],["g",8],["v",39]],
+];
+const RL_PX = 1.32;
+const RL_THUMBS = [
+  [1,"<em>週末だけ</em>の<br>パン屋さん"],
+  [0,"朝4時の<br><em>仕込み</em>密着"],
+  [2,"副業で<br>パン屋<em>1年目</em>"],
+];
+const RL_TAGS = ["#週末パン屋","#副業","#手作りパン","#パン好きな人と繋がりたい","#朝活"];
+const rlThumb = (t,big) => `<div class="rl-th${big?" big":""}" style="background:${RL_SCENES[t[0]].bg}"><span class="e">${RL_SCENES[t[0]].emo}</span><div class="t">${t[1]}</div></div>`;
+const reel = {i:0, iv:0, telop:false, playing:false};
+function reelShow(i){
+  reel.i=i;
+  qa(".rl-scene").forEach((s,j)=>s.classList.toggle("on", j===i));
+  const tp=q("#rTelop");
+  if(reel.telop){ tp.classList.remove("on"); tp.innerHTML=`<b>${RL_SCENES[i].telop}</b>`; void tp.offsetWidth; tp.classList.add("on"); }
+  qa(".rl-prog span").forEach((s,j)=>{ s.className = j<i ? "full" : ""; if(j===i){ void s.offsetWidth; s.className="cur"; } });
+}
+function reelStart(){ clearInterval(reel.iv); reel.playing=true; reelShow(reel.i); reel.iv=setInterval(()=>reelShow((reel.i+1)%3), 1300); }
+function reelStop(){ clearInterval(reel.iv); reel.playing=false; }
+SC.reel = {
+  name:"リール量産スキル", icon:"🎬",
+  prompt:"この3本の素材で、インスタ用の30秒リールを作って。テロップとBGMも。",
+  attach:"📎 素材3本　計4:18",
+  files:[["🎞","clip_01.mp4","1:32"],["🎞","clip_02.mp4","1:21"],["🎞","clip_03.mp4","1:25"]],
+  intro:"了解しました。30秒のリールに編集して、テロップ・BGM・サムネイル・キャプションまで用意します。",
+  logs:[["素材3本を読み込み","計4分18秒"],["無音をカット","-38秒"],["見どころを30秒に編集","3か所"],["テロップを生成・配置","3枚"],["BGM・サムネ3案・キャプション","完了"]],
+  status:"リール1本・サムネ3案・キャプション", sub:"30秒リール一式",
+  before:[["素材を見返す",40],["カット編集",90],["テロップ入れ",70],["BGM・サムネ等",40]], agent:8,
+  punch:[`リール1本 <s>半日</s> → <span class="to">8分</span>`, `週3本の投稿も、無理なく続けられる`],
+  build(){
+    const clips = RL_CLIPS.map((c,ci)=>`<div class="rl-clip">${c.map(s=>s[0]==="v"
+      ? `<div class="rl-v" ${s[2]?'data-pick="1"':""} style="width:${Math.round(s[1]*RL_PX)}px;background:${RL_SCENES[ci].c}"></div>`
+      : `<div class="rl-g" style="width:${Math.round(s[1]*RL_PX)}px"></div>`).join("")}</div>`).join("");
+    const bgm = Array.from({length:70},(_,i)=>`<i data-h="${25+Math.round(65*Math.abs(Math.sin(i*0.45)*Math.cos(i*0.13)))}"></i>`).join("");
+    return PH + `<div class="rl">
+      <div class="card rl-pc" id="rPhone"><div class="lb">プレビュー　9:16</div>
+        <div class="rl-phone" data-act="reelplay"><div class="rl-screen">
+          <div class="rl-prog"><span><i></i></span><span><i></i></span><span><i></i></span></div>
+          ${RL_SCENES.map(s=>`<div class="rl-scene" style="background:${s.bg}"><span>${s.emo}</span></div>`).join("")}
+          <div class="rl-telop" id="rTelop"></div>
+          <div class="rl-rail"><span>♡<b>128</b></span><span>💬<b>12</b></span><span>↗</span></div>
+          <div class="rl-meta"><b>@weekend_bakery</b><div class="c1">週末だけ開く、小さなパン屋を始めて1年。</div><div class="rl-bgm" id="rBgmChip">♪ Morning Bakery</div></div>
+          <div class="rl-load" id="rLoad">素材を読み込み中…</div>
+          <div class="rl-paused" id="rPaused">❚❚</div>
+        </div></div></div>
+      <div class="rl-right">
+        <div class="card" id="rTl"><div class="lb">タイムライン<span class="rl-dur" id="rDur">4:18</span></div>
+          <div class="rl-row"><span>素材</span><div class="rl-src">${clips}</div></div>
+          <div class="rl-out">
+            <div class="rl-row" id="rRowV"><span>完成</span><div class="rl-vt">${[10,12,8].map((s,i)=>`<i style="flex:${s};background:${RL_SCENES[i].c}"></i>`).join("")}</div></div>
+            <div class="rl-row" id="rRowT"><span>テロップ</span><div class="rl-tt">${RL_SCENES.map((s,i)=>`<span style="flex:${[10,12,8][i]}">${s.telop.replace("<br>","")}</span>`).join("")}</div></div>
+            <div class="rl-row" id="rRowB"><span>BGM</span><div class="rl-bt">${bgm}</div></div>
+          </div></div>
+        <div class="card" id="rTh"><div class="lb">サムネイル 3案<button class="open" data-open="th0">開く ↗</button></div>
+          <div class="rl-ths">${RL_THUMBS.map((t,i)=>`<div class="rl-thw" data-open="th${i}">${rlThumb(t)}<span>案${"ABC"[i]}</span></div>`).join("")}</div></div>
+        <div class="card" id="rCap"><div class="lb">キャプション</div>
+          <p class="rl-cap">週末だけ開く、小さなパン屋を始めて1年。<br>仕込みは朝4時から、焼きたては10時に並びます🥐<br>今週は新作のくるみパンも焼きます。</p>
+          <div class="rl-tags">${RL_TAGS.map(t=>`<span>${t}</span>`).join("")}</div></div>
+      </div></div>`;
+  },
+  play(L){
+    const clips=qa(".rl-clip"), gaps=qa(".rl-g"), vs=qa(".rl-v"), outs=qa(".rl-vt i"), pills=qa(".rl-tt span"), bgm=qa(".rl-bt i"), ths=qa(".rl-thw"), tags=qa(".rl-tags span");
+    const dur=s=>{ q("#rDur").textContent = Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); };
+    at(300, ()=>{ L(0,"run"); q("#rPhone").classList.add("in"); q("#rTl").classList.add("in"); });
+    clips.forEach((c,i)=>at(500+i*300, ()=>c.classList.add("in")));
+    at(1300, ()=>{ q("#rLoad").classList.add("off"); reelShow(0); });
+    at(1600, ()=>{ L(0,"done"); L(1,"run"); gaps.forEach(g=>g.classList.add("hot")); });
+    at(2000, ()=>gaps.forEach(g=>g.classList.add("cut")));
+    for(let k=1;k<=8;k++) at(2000+k*70, ()=>dur(258-Math.round(38*k/8)));
+    at(2800, ()=>{ L(1,"done"); L(2,"run"); vs.forEach(v=>v.classList.add(v.dataset.pick?"pick":"dim")); });
+    at(3300, ()=>{ q("#rRowV").classList.add("in"); outs.forEach((o,i)=>setTimeout(()=>o.classList.add("in"), i*120)); dur(30); q("#rDur").classList.add("hit"); });
+    at(3500, ()=>{ reelShow(1); reelStart(); });
+    at(4300, ()=>{ L(2,"done"); L(3,"run"); q("#rRowT").classList.add("in"); reel.telop=true; reelShow(reel.i); });
+    pills.forEach((p,i)=>at(4400+i*300, ()=>p.classList.add("in")));
+    at(5600, ()=>{ L(3,"done"); L(4,"run"); q("#rRowB").classList.add("in"); q("#rBgmChip").classList.add("on"); });
+    bgm.forEach((b,i)=>at(5600+i*6, ()=>b.style.height=b.dataset.h+"%"));
+    at(6000, ()=>q("#rTh").classList.add("in"));
+    ths.forEach((t,i)=>at(6200+i*300, ()=>t.classList.add("in")));
+    at(7200, ()=>{ q("#rCap").classList.add("in"); q(".rl-cap").classList.add("in"); });
+    tags.forEach((t,i)=>at(7500+i*120, ()=>t.classList.add("in")));
+    return 8400;
+  },
+  open(key){
+    if(!key.startsWith("th")) return null;
+    return {items:RL_THUMBS.map((t,i)=>`<div class="gal-c">${rlThumb(t,true)}</div><div style="text-align:center;margin-top:8px;color:var(--muted);font-size:13px">サムネイル 案${"ABC"[i]}</div>`), i:+key.slice(2), narrow:true};
+  },
+};
+
+// =====================================================================
+// ③ 経費精算スキル（アプリを作る）
+// =====================================================================
+const EX_CATS = ["消耗品費","旅費交通費","会議費","新聞図書費"];
+const EX_COLORS = ["#6366f1","#14b8a6","#f59e0b","#ec4899"];
+const EX_SEED = [
+  ["10/02","ヨドバシカメラ","外付けSSD",0,12800],
+  ["10/05","JR東日本","打合せの交通費",1,1240],
+  ["10/11","スターバックス","クライアント打合せ",2,1580],
+  ["10/18","Amazon","書籍（SNS運用）",3,2420],
+  ["10/24","JR東日本","セミナー往復",1,2860],
+];
+let exRows=[];
+function exAddRow(r){
+  const tr=document.createElement("tr"); tr.className="new";
+  tr.innerHTML=`<td>${r[0]}</td><td>${r[1]} <small>${r[2]}</small></td><td><span class="cat c${r[3]}">${EX_CATS[r[3]]}</span></td><td>${yen(r[4])}</td>`;
+  q("#eRows").appendChild(tr);
+}
+function countUp(el,to,dur){
+  const st=performance.now(), from=+(el.dataset.v||0); el.dataset.v=to;
+  const f=n=>{ const p=Math.min(1,(n-st)/dur); el.textContent=yen(Math.round(from+(to-from)*(1-Math.pow(1-p,3)))); if(p<1) requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+}
+function exSum(){
+  const t=EX_CATS.map((_,i)=>exRows.filter(r=>r[3]===i).reduce((a,r)=>a+r[4],0));
+  const max=Math.max(...t);
+  qa(".ex-srow").forEach((row,i)=>{ row.querySelector(".fl").style.width=(t[i]/max*100)+"%"; countUp(row.querySelector(".v"),t[i],800); });
+  countUp(q("#eTot"), t.reduce((a,b)=>a+b,0), 800);
+}
+function exCheck(){
+  const a=exRows.reduce((s,r)=>s+r[4],0);
+  q("#eChkA").textContent=yen(a); q("#eChkB").textContent=yen(a);
+  const res=q("#eChkR"); res.textContent="✓ 一致しました（"+exRows.length+"件）"; res.classList.add("ok");
+}
+SC.expense = {
+  name:"経費精算スキル", icon:"🧾",
+  prompt:"レシートを入れたら、勘定科目ごとに集計してくれるアプリを作って。",
+  attach:"📎 レシート 5枚",
+  files:[["🧾","レシート 5枚","10月分"]],
+  intro:"了解しました。入力画面から集計まで動くアプリを作って、レシート5枚を登録します。",
+  logs:[["入力画面を組み立て","4項目"],["明細5件を登録","5件"],["勘定科目ごとに集計","4科目"],["合計を検算（明細と一致）","¥20,900"]],
+  status:"経費精算アプリ・明細5件", sub:"動くアプリ＋10月分の集計",
+  before:[["レシートを入力",45],["科目を仕分け",30],["集計・検算",25]], agent:5,
+  punch:[`毎月の経費精算 <s>1時間40分</s> → <span class="to">5分</span>`, `アプリは手元に残る。来月はレシートを入れるだけ`],
+  build(){
+    exRows=[];
+    const f=(lb,inner)=>`<label class="ex-f">${lb}${inner}</label>`;
+    return PH + `<div class="card ex-win" id="eWin">
+      <div class="ex-bar"><i></i><i></i><i></i><span>けいひ帳 ― My Agentが作ったアプリ</span></div>
+      <div class="ex-body">
+        <div class="ex-head ex-b"><b>けいひ帳</b><span>2026年10月 ｜ 副業の経費</span><span class="n">自動生成</span></div>
+        <div class="ex-rcs ex-b"><div class="ex-lbl">読み込んだレシート</div><div class="ex-rcl">${EX_SEED.map(r=>`<div class="ex-rc"><b>${r[1]}</b><span>2026/${r[0]}</span><span>${r[2]}</span><em>${yen(r[4])}</em></div>`).join("")}</div></div>
+        <div class="ex-main">
+          <div class="ex-left">
+            <div class="ex-form ex-b">
+              <div class="ex-fr" style="grid-template-columns:72px 1fr 1fr">${f("日付",`<input id="fD" value="10/28" disabled>`)}${f("支払先",`<input id="fP" value="ダイソー" disabled>`)}${f("内容",`<input id="fN" value="打合せ用の文具" disabled>`)}</div>
+              <div class="ex-fr" style="grid-template-columns:1fr 1fr auto">${f("金額（円）",`<input id="fA" value="550" inputmode="numeric" disabled>`)}${f("勘定科目",`<select id="fC" disabled>${EX_CATS.map((c,i)=>`<option value="${i}">${c}</option>`).join("")}</select>`)}<button class="ex-add" data-act="exadd" disabled>＋ 追加</button></div>
+            </div>
+            <div class="ex-tbl ex-b"><table><thead><tr><th>日付</th><th>支払先・内容</th><th>勘定科目</th><th>金額</th></tr></thead><tbody id="eRows"></tbody></table></div>
+          </div>
+          <div class="ex-right">
+            <div class="ex-sum ex-b"><div class="ex-lbl">勘定科目ごとの集計</div>
+              ${EX_CATS.map((c,i)=>`<div class="ex-srow"><span class="cat c${i}">${c}</span><div class="tr"><div class="fl" style="background:${EX_COLORS[i]}"></div></div><span class="v">¥0</span></div>`).join("")}
+              <div class="ex-total">合計<b id="eTot">¥0</b></div></div>
+            <div class="ex-chk ex-b"><div class="ex-lbl">検算</div>
+              <div class="r">明細の合計<b id="eChkA">—</b></div><div class="r">科目別の合計<b id="eChkB">—</b></div>
+              <div class="res" id="eChkR">検算待ち</div></div>
+          </div>
+        </div>
+      </div></div>`;
+  },
+  play(L){
+    const blocks=qa(".ex-b"), rc=qa(".ex-rc");
+    at(300, ()=>{ L(0,"run"); q("#eWin").classList.add("in"); });
+    blocks.forEach((b,i)=>at(700+i*230, ()=>b.classList.add("on")));
+    at(2200, ()=>{ L(0,"done"); L(1,"run"); });
+    EX_SEED.forEach((r,i)=>at(2300+i*420, ()=>{
+      if(i>0) rc[i-1].classList.replace("read","used");
+      rc[i].classList.add("read"); exRows.push(r); exAddRow(r);
+    }));
+    at(4500, ()=>{ rc[4].classList.replace("read","used"); L(1,"done"); L(2,"run"); exSum(); });
+    at(5700, ()=>{ L(2,"done"); L(3,"run"); });
+    at(6200, ()=>exCheck());
+    return 6900;
+  },
+  onDone(){ qa(".ex-form input, .ex-form select, .ex-add").forEach(e=>e.disabled=false); },
+  open(){ return null; },
+};
+
+// =====================================================================
+// 共通の進行
+// =====================================================================
+function scaleSlides(root){
+  root.querySelectorAll(".slwrap").forEach(w=>{ const s=w.querySelector(".slide"); if(s) s.style.transform=`scale(${w.clientWidth/960})`; });
+}
+const SKILLS=["meeting","reel","expense"];
+function emptyChat(){
+  // 左メニューが拡張機能にクリックを奪われる環境でも選べるよう、中央にも全スキルを並べる
+  thread.innerHTML = `<div class="empty"><h2>何をお手伝いしましょう？</h2>
+    <div>スキルを選ぶか、依頼を入力してください</div>
+    <div class="chips">${SKILLS.map((k,i)=>`<button class="chip${k===cur?" on":""}" data-skill="${k}">${SC[k].icon} ${SC[k].name}<kbd>${i+1}</kbd></button>`).join("")}</div></div>`;
+}
+function reset(key){
+  if(key) cur=key;
+  timers.forEach(clearTimeout); timers=[]; cancelAnimationFrame(raf); reelStop(); reel.telop=false; reel.i=0;
+  state="idle"; cv.classList.remove("done");
+  document.querySelectorAll(".skill").forEach(b=>b.classList.toggle("on", b.dataset.skill===cur));
+  emptyChat(); inp.value=""; inp.disabled=false; att.classList.remove("show"); att.textContent=SC[cur].attach;
+  go.disabled=true; go.classList.remove("pulse");
+  stage.innerHTML=SC[cur].build(); scaleSlides(stage);
+  $("tm").textContent="0.0"; $("cvst").textContent="待機中"; $("badge").classList.remove("on");
+  closeModal();
+}
+
+// 幕1：依頼が入る
+function prefill(){
+  if(state!=="idle") return;
+  const P=SC[cur].prompt;
+  state="typing"; inp.value=""; let i=0;
+  const step=()=>{ inp.value=P.slice(0,++i); if(i<P.length) at(28,step); else { att.classList.add("show"); state="ready"; go.disabled=false; go.classList.add("pulse"); inp.focus(); } };
+  step();
+}
+
+// 幕2〜4：実行
+function run(){
+  if(state==="idle" && !inp.value.trim()){ prefill(); return; }
+  if(state!=="ready" && state!=="idle") return;
+  const S=SC[cur];
+  state="running"; go.disabled=true; go.classList.remove("pulse"); inp.disabled=true;
+  const text = inp.value.trim() || S.prompt;
+  inp.value=""; att.classList.remove("show");
+  thread.innerHTML = `<div class="u">${text}${S.files.map(f=>`<div class="file">${f[0]} <b>${f[1]}</b><span>${f[2]}</span></div>`).join("")}</div>`;
+  const a=document.createElement("div"); a.className="a";
+  a.innerHTML=`<div class="av"><svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="#fff"/></svg></div>
+    <div class="body"><div>${S.intro}</div>
+    <div class="logs">${S.logs.map(l=>`<div class="log"><span class="st"></span><span>${l[0]}</span><span class="dt">${l[1]}</span></div>`).join("")}</div></div>`;
+  thread.appendChild(a);
+  const logs=[...a.querySelectorAll(".log")];
+  const L=(i,s)=>{ logs[i].className="log "+s; };
+
+  t0=performance.now();
+  const tick=()=>{ $("tm").textContent=((performance.now()-t0)/1000).toFixed(1); raf=requestAnimationFrame(tick); };
+  tick(); $("cvst").textContent="作業中…"; q("#ph").style.opacity=0;
+
+  const end=S.play(L);
+  // 完成直前の間（0.5秒）→ 完成
+  at(end, ()=>{ L(logs.length-1,"done"); cancelAnimationFrame(raf); $("cvst").textContent="仕上げ中…"; });
+  at(end+500, ()=>finish(a.querySelector(".body")));
+}
+
+function finish(body){
+  const S=SC[cur];
+  state="done";
+  const sec=$("tm").textContent;
+  $("cvst").textContent=S.status; $("badge").classList.add("on"); cv.classList.add("done");
+  if(S.onDone) S.onDone();
+  const max=Math.max(...S.before.map(b=>b[1]));
+  const fin=document.createElement("div"); fin.className="fin";
+  fin.innerHTML=`<div class="hd"><b>完成しました</b><span style="font-size:12px;color:var(--muted)">${S.sub}</span><span class="sec">${sec}秒</span></div>
+    <div class="bars">
+      <div class="cap">これまでの手作業</div>
+      ${S.before.map(b=>`<div class="bar"><span>${b[0]}</span><div class="tr"><div class="fl" data-w="${b[1]/max*100}"></div></div><span class="v">${b[1]}分</span></div>`).join("")}
+      <div class="bar ag"><span>エージェント</span><div class="tr"><div class="fl" data-w="${S.agent/max*100}"></div></div><span class="v">${S.agent}分</span></div>
+    </div>
+    <div class="punch">${S.punch.map(p=>`<div>${p}</div>`).join("")}</div>
+    <button class="again" data-act="reset">もう一度見る（R）</button>
+    <div class="next">次のデモ：${SKILLS.filter(k=>k!==cur).map(k=>`<button class="chip" data-skill="${k}">${SC[k].icon} ${SC[k].name}<kbd>${SKILLS.indexOf(k)+1}</kbd></button>`).join("")}</div>`;
+  body.appendChild(fin);
+  thread.scrollTop=thread.scrollHeight;
+  setTimeout(()=>fin.querySelectorAll(".fl").forEach((f,i)=>setTimeout(()=>f.style.width=f.dataset.w+"%", i*150)), 150);
+}
+
+// ---- 完成物を開く ----
+function openModal(key){
+  if(state!=="done") return;
+  const g=SC[cur].open(key); if(!g) return;
+  G=g; $("mask").classList.add("on"); renderG();
+}
+function renderG(){
+  const m=$("modal");
+  m.style.width = G.narrow ? "min(420px,92vw)" : "";
+  m.innerHTML=`<button class="x" data-act="close">×</button>${G.items[G.i]}`+
+    (G.items.length>1?`<div class="nav"><button data-act="prev">←</button>${G.i+1} / ${G.items.length}<button data-act="next">→</button></div>`:"");
+  scaleSlides(m);
+  setTimeout(()=>m.querySelectorAll(".slwrap").forEach(w=>w.classList.add("in")), 40);
+}
+function step(d){ if(!G||G.items.length<2) return; G.i=(G.i+d+G.items.length)%G.items.length; renderG(); }
+function closeModal(){ $("mask").classList.remove("on"); G=null; }
+
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("on"),1800); }
+
+function exAddFromForm(){
+  const a=parseInt(q("#fA").value.replace(/[^0-9]/g,""),10);
+  if(!a){ toast("金額を入れてください"); return; }
+  const r=[q("#fD").value||"10/31", q("#fP").value||"（支払先なし）", q("#fN").value, +q("#fC").value, a];
+  exRows.push(r); exAddRow(r); exSum(); exCheck();
+  q("#eRows").parentElement.parentElement.scrollTop=9999;
+  ["#fP","#fN","#fA"].forEach(s=>q(s).value="");
+  q(".ex-add").style.animation="none";
+  toast("明細を追加しました。集計と検算も更新されています");
+}
+
+// ---- 操作 ----
+document.addEventListener("click", e=>{
+  const el=e.target.closest("[data-skill],[data-open],[data-act]");
+  if(!el){ if(e.target===$("mask")) closeModal(); return; }
+  const d=el.dataset;
+  if(d.skill==="soon") toast("試作版では、まだ動きません");
+  else if(d.skill){ if(d.skill!==cur||state!=="idle") reset(d.skill); prefill(); }
+  else if(d.open) openModal(d.open);
+  else if(d.act==="reset") reset();
+  else if(d.act==="close") closeModal();
+  else if(d.act==="prev") step(-1);
+  else if(d.act==="next") step(1);
+  else if(d.act==="exadd" && state==="done") exAddFromForm();
+  else if(d.act==="reelplay" && state==="done"){ if(reel.playing) reelStop(); else reelStart(); q("#rPaused").classList.toggle("on", !reel.playing); }
+});
+go.addEventListener("click", run);
+inp.addEventListener("input", ()=>{ if(state==="idle") go.disabled=!inp.value.trim(); });
+document.addEventListener("keydown", e=>{
+  if(e.isComposing) return;
+  if($("mask").classList.contains("on")){
+    if(e.key==="Escape") closeModal();
+    if(e.key==="ArrowRight") step(1);
+    if(e.key==="ArrowLeft") step(-1);
+    return;
+  }
+  const typing = ["INPUT","SELECT"].includes(document.activeElement.tagName);
+  if(e.key==="Enter" && !e.shiftKey && !typing){ e.preventDefault(); if(state==="idle"||state==="ready") run(); }
+  if((e.key==="r"||e.key==="R") && !typing && (document.activeElement!==inp || state==="done")){ e.preventDefault(); reset(); }
+  const n=SKILLS[+e.key-1];
+  if(n && !typing && (document.activeElement!==inp || state!=="idle")){ e.preventDefault(); reset(n); prefill(); }
+});
+
+function fit(){
+  const f=$("fit"), W=760, H=700;
+  const s=Math.min(f.clientWidth/W, f.clientHeight/H, 1.5);
+  stage.style.transform=`translate(${(f.clientWidth-W*s)/2}px,0) scale(${s})`;
+}
+window.addEventListener("resize", fit);
+
+reset("meeting");
+fit();
+</script>
+</body>
+</html>
