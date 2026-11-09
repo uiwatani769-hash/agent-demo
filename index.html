@@ -472,7 +472,7 @@ SC.meeting = {
   logs:[["音声を読み込み","46分12秒"],["文字起こし中…話者2名を分離","7発言"],["決定・宿題・保留に仕分け","3・2・2件"],["議事録を1枚に整形","A4 1枚"],["報告スライドを生成","3枚"]],
   status:"議事録1枚・スライド3枚", sub:"議事録・報告スライド",
   before:[["録音を聞き直す",45],["議事録を書く",40],["報告書を作る",60]], agent:3,
-  punch:[`45分の会議 → 議事録 <s>40分</s> <span class="to">3分</span>`, `報告書づくり <s>2時間</s> → <span class="to">0分</span>`],
+  punch:[`45分の会議 → 議事録 <s>40分</s> <span class="to">3分</span>`, `報告スライドの下書きも、あわせてできあがる`],
   build(){
     const bars = Array.from({length:84},(_,i)=>{
       const h = 18 + Math.round(70*Math.abs(Math.sin(i*0.62)*Math.cos(i*0.17+1)) + 12*Math.abs(Math.sin(i*2.3)));
@@ -561,7 +561,7 @@ SC.reel = {
   logs:[["素材3本を読み込み","計4分18秒"],["無音をカット","-38秒"],["見どころを30秒に編集","3か所"],["テロップを生成・配置","3枚"],["BGM・サムネ3案・キャプション","完了"]],
   status:"リール1本・サムネ3案・キャプション", sub:"30秒リール一式",
   before:[["素材を見返す",40],["カット編集",90],["テロップ入れ",70],["BGM・サムネ等",40]], agent:8,
-  punch:[`リール1本 <s>半日</s> → <span class="to">8分</span>`, `週3本の投稿も、無理なく続けられる`],
+  punch:[`リール1本 <s>半日</s> → <span class="to">8分</span>`, `投稿づくりの手間が減って、続けやすくなる`],
   build(){
     const clips = RL_CLIPS.map((c,ci)=>`<div class="rl-clip">${c.map(s=>s[0]==="v"
       ? `<div class="rl-v" ${s[2]?'data-pick="1"':""} style="width:${Math.round(s[1]*RL_PX)}px;background:${RL_SCENES[ci].c}"></div>`
@@ -627,11 +627,11 @@ SC.reel = {
 const EX_CATS = ["消耗品費","旅費交通費","会議費","新聞図書費"];
 const EX_COLORS = ["#6366f1","#14b8a6","#f59e0b","#ec4899"];
 const EX_SEED = [
-  ["10/02","ヨドバシカメラ","外付けSSD",0,12800],
-  ["10/05","JR東日本","打合せの交通費",1,1240],
-  ["10/11","スターバックス","クライアント打合せ",2,1580],
-  ["10/18","Amazon","書籍（SNS運用）",3,2420],
-  ["10/24","JR東日本","セミナー往復",1,2860],
+  ["10/02","デンキのモリ","外付けSSD",0,12800],
+  ["10/05","みどり鉄道","打合せの交通費",1,1240],
+  ["10/11","カフェ・ソラ","クライアント打合せ",2,1580],
+  ["10/18","ほんのネット","書籍（SNS運用）",3,2420],
+  ["10/24","みどり鉄道","セミナー往復",1,2860],
 ];
 let exRows=[];
 function exAddRow(r){
@@ -664,7 +664,7 @@ SC.expense = {
   logs:[["入力画面を組み立て","4項目"],["明細5件を登録","5件"],["勘定科目ごとに集計","4科目"],["合計を検算（明細と一致）","¥20,900"]],
   status:"経費精算アプリ・明細5件", sub:"動くアプリ＋10月分の集計",
   before:[["レシートを入力",45],["科目を仕分け",30],["集計・検算",25]], agent:5,
-  punch:[`毎月の経費精算 <s>1時間40分</s> → <span class="to">5分</span>`, `アプリは手元に残る。来月はレシートを入れるだけ`],
+  punch:[`毎月の経費精算 <s>1時間40分</s> → <span class="to">5分</span>`, `入力と集計の手間が、ぐっと減る`],
   build(){
     exRows=[];
     const f=(lb,inner)=>`<label class="ex-f">${lb}${inner}</label>`;
@@ -676,7 +676,7 @@ SC.expense = {
         <div class="ex-main">
           <div class="ex-left">
             <div class="ex-form ex-b">
-              <div class="ex-fr" style="grid-template-columns:72px 1fr 1fr">${f("日付",`<input id="fD" value="10/28" disabled>`)}${f("支払先",`<input id="fP" value="ダイソー" disabled>`)}${f("内容",`<input id="fN" value="打合せ用の文具" disabled>`)}</div>
+              <div class="ex-fr" style="grid-template-columns:72px 1fr 1fr">${f("日付",`<input id="fD" value="10/28" disabled>`)}${f("支払先",`<input id="fP" value="100円ショップ" disabled>`)}${f("内容",`<input id="fN" value="打合せ用の文具" disabled>`)}</div>
               <div class="ex-fr" style="grid-template-columns:1fr 1fr auto">${f("金額（円）",`<input id="fA" value="550" inputmode="numeric" disabled>`)}${f("勘定科目",`<select id="fC" disabled>${EX_CATS.map((c,i)=>`<option value="${i}">${c}</option>`).join("")}</select>`)}<button class="ex-add" data-act="exadd" disabled>＋ 追加</button></div>
             </div>
             <div class="ex-tbl ex-b"><table><thead><tr><th>日付</th><th>支払先・内容</th><th>勘定科目</th><th>金額</th></tr></thead><tbody id="eRows"></tbody></table></div>
