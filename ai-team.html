@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>AIチーム デモ</title>
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#fff; --line:#e7e5df; --line2:#d9d6ce;
+  --text:#1f1f1d; --muted:#6c6b66; --faint:#a3a19a;
+  --accent:#4f46e5; --accent-bg:#eef0ff;
+  --ok:#15803d; --ok-bg:#e7f6ec;
+  --todo:#b45309; --todo-bg:#fdf1de;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+kbd{font-family:inherit;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;color:var(--muted);background:#fff}
+
+.app{display:grid;grid-template-rows:52px 1fr;height:100vh}
+.top{display:flex;align-items:center;gap:12px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:14px}
+.top .name{font-weight:600}
+.tabs{display:flex;gap:4px;margin-left:6px}
+.backlink{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:3px 10px;margin-left:10px}
+.backlink:hover{color:var(--accent);border-color:var(--accent)}
+.tab{padding:5px 12px;border-radius:8px;color:var(--muted);font-size:13px}
+.tab:hover{background:var(--bg)}
+.tab.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.tab kbd{margin-right:6px}
+.top .hint{margin-left:auto;color:var(--faint);font-size:12px}
+
+.main{display:grid;grid-template-columns:clamp(290px,26vw,370px) 1fr;min-height:0}
+
+/* 左：分身 */
+.me{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.me-head{display:flex;align-items:center;gap:12px;padding:12px 16px 10px;border-bottom:1px solid var(--line)}
+.av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;flex:none;position:relative}
+.me-head .av{background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff}
+.me-head .av::after{content:"";position:absolute;right:0;bottom:0;width:11px;height:11px;border-radius:50%;background:#22c55e;border:2px solid #fff}
+.me-head b{display:block;font-size:15px}
+.me-head span{font-size:12px;color:var(--muted)}
+.me-body{flex:1;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.idle{margin:auto 0;text-align:center;color:var(--muted);font-size:13px}
+.idle h2{font-size:16px;color:var(--text);margin-bottom:6px}
+.bub{max-width:94%;padding:8px 12px;font-size:13px;opacity:0;transform:translateY(6px);transition:.35s}
+.bub.in{opacity:1;transform:none}
+.bub.u{align-self:flex-end;background:var(--bg);border-radius:14px 14px 4px 14px}
+.bub.a{align-self:flex-start;background:var(--accent-bg);border-radius:14px 14px 14px 4px}
+.plan{display:flex;flex-direction:column;gap:6px}
+.pl{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 10px;line-height:1.4;border:1px solid var(--line);border-radius:8px;background:#fff;opacity:0;transform:translateX(-8px);transition:.35s}
+.pl.in{opacity:1;transform:none}
+.pl .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.pl .to{margin-left:auto;font-size:11px;color:var(--faint);white-space:nowrap}
+.pl.done .to{color:var(--ok)}
+.rv{border:1px solid #f3d9a8;background:var(--todo-bg);border-radius:10px;padding:10px 12px;opacity:0;transform:translateY(6px);transition:.4s}
+.rv.in{opacity:1;transform:none}
+.rv h4{font-size:12.5px;color:var(--todo);margin-bottom:6px}
+.rv li{list-style:none;display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;border-top:1px dashed #efd3a0}
+.rv li:first-of-type{border-top:0}
+.rv .btn{margin-left:auto;font-size:11px;border:1px solid var(--todo);color:var(--todo);border-radius:999px;padding:1px 10px;background:#fff;white-space:nowrap}
+.inbar{border-top:1px solid var(--line);padding:12px 14px;display:flex;gap:8px;align-items:center}
+.inp{flex:1;min-height:40px;border:1px solid var(--line2);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--text);background:#fff}
+.inp.ph{color:var(--faint)}
+.go{background:var(--accent);color:#fff;border-radius:10px;padding:9px 14px;font-size:13px;white-space:nowrap;opacity:.45}
+.go.ready{opacity:1}
+
+/* 右：チーム */
+.team{padding:14px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;min-height:0;position:relative}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden;transition:border-color .3s, box-shadow .3s}
+.card.run{border-color:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 14%,transparent)}
+.card.done{cursor:pointer}
+.card.done:hover{border-color:var(--c)}
+.ch{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
+.ch .av{width:36px;height:36px;font-size:18px;background:color-mix(in srgb,var(--c) 14%,#fff)}
+.ch b{display:block;font-size:14px}
+.ch small{display:block;font-size:11.5px;color:var(--muted);line-height:1.4}
+.st{margin-left:auto;font-size:11px;border-radius:999px;padding:2px 10px;background:var(--bg);color:var(--faint);white-space:nowrap}
+.card.run .st{background:color-mix(in srgb,var(--c) 14%,#fff);color:var(--c)}
+.card.done .st{background:var(--ok-bg);color:var(--ok)}
+.opn{display:none;font-size:11px;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 40%,#fff);border-radius:999px;padding:1px 9px;margin-left:6px;white-space:nowrap}
+.card.done .opn{display:inline-block}
+.bar{height:3px;background:var(--line);margin:0 14px}
+.bar i{display:block;height:100%;width:0;background:var(--c);transition:width .6s ease}
+.logs{position:relative;height:26px;margin:6px 14px 0;font-size:11.5px;color:var(--muted)}
+.lg{position:absolute;inset:0;display:flex;gap:6px;opacity:0;transform:translateY(4px);transition:.3s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lg.in{opacity:1;transform:none}
+.lg.gone{opacity:0;transform:translateY(-4px)}
+.lg::before{content:"›";color:var(--c)}
+.out{flex:1;margin:4px 14px 14px;border-radius:10px;background:var(--bg);border:1px dashed var(--line2);position:relative;overflow:hidden;min-height:0}
+.out .ph{position:absolute;inset:0;display:grid;place-items:center;color:var(--faint);font-size:12px;text-align:center;padding:8px}
+.out .res{position:absolute;inset:0;padding:10px 12px;opacity:0;transform:scale(.97);transition:.5s;overflow:hidden}
+.out.in{border-style:solid;background:#fff}
+.out.in .res{opacity:1;transform:none}
+.out.in .ph{opacity:0}
+
+/* 調べている最中 */
+.scan{width:100%;font-size:11.5px;color:var(--muted);text-align:left}
+.scan .cnt{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;color:var(--text)}
+.scan .cnt b{font-size:22px;color:var(--c);font-variant-numeric:tabular-nums}
+.scan .src{display:flex;gap:6px;align-items:center;padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scan .src i{font-style:normal;font-size:10px;border-radius:4px;padding:0 5px;background:color-mix(in srgb,var(--c) 12%,#fff);color:var(--c);flex:none}
+.scan .src:first-of-type{color:var(--text)}
+
+/* 成果物の部品（カード内） */
+.r-t{font-size:11px;color:var(--faint);margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+.stats{display:flex;gap:6px;margin-bottom:6px}
+.stats div{flex:1;background:var(--bg);border-radius:6px;padding:3px 8px;font-size:10.5px;color:var(--muted);line-height:1.3}
+.stats b{display:block;font-size:15px;color:var(--text)}
+.finds li{list-style:none;display:flex;gap:6px;align-items:flex-start;font-size:12px;padding:2px 0;line-height:1.45}
+.finds li span{flex:none;width:16px;height:16px;border-radius:50%;background:var(--c);color:#fff;font-size:10px;display:grid;place-items:center;margin-top:1px}
+.chart{display:flex;align-items:flex-end;gap:12px;height:calc(100% - 46px);padding:0 6px;border-bottom:1px solid var(--line2)}
+.chart div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:11px;color:var(--muted)}
+.chart i{display:block;width:70%;border-radius:5px 5px 0 0;background:color-mix(in srgb,var(--c) 45%,#fff);height:0;transition:height .8s ease}
+.chart div:last-child i{background:var(--c)}
+.chart em{font-style:normal;font-size:11px;color:var(--text);margin-bottom:2px}
+.cap{font-size:11px;color:var(--muted);margin-top:4px}
+.slides{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;height:calc(100% - 22px)}
+.sl{border-radius:6px;border:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:5px;font-size:10px;background:#fff}
+.sl:first-child{background:#1e1b4b;color:#fff;border-color:#1e1b4b}
+.sl b{font-size:11px;line-height:1.35}
+.sl i{display:block;height:5px;border-radius:3px;background:var(--line)}
+.sl:first-child i{background:#4338ca}
+.sl .mini{display:flex;align-items:flex-end;gap:3px;height:34px;margin-top:auto}
+.sl .mini span{flex:1;background:#c7d2fe;border-radius:2px 2px 0 0}
+.mhd{font-size:11px;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:5px;line-height:1.55}
+.mhd b{color:var(--text);font-weight:600}
+.mbd{font-size:11.5px;line-height:1.6}
+.att{display:inline-flex;gap:4px;align-items:center;font-size:10.5px;border:1px solid var(--line);border-radius:6px;padding:0 6px;margin:4px 4px 0 0;background:var(--bg)}
+.tbars li{list-style:none;display:grid;grid-template-columns:118px 1fr 40px;gap:6px;align-items:center;font-size:11px;padding:2px 0}
+.tbars li i{display:block;height:9px;border-radius:5px;background:color-mix(in srgb,var(--c) 30%,#fff)}
+.tbars li.best i{background:var(--c)}
+.tbars li.best{font-weight:600}
+.tbars em{font-style:normal;text-align:right;color:var(--muted)}
+.reco{margin-top:6px;font-size:11.5px;background:color-mix(in srgb,var(--c) 9%,#fff);border-radius:6px;padding:4px 8px}
+.txt{font-size:11.5px;line-height:1.65}
+.txt .tag{color:var(--accent)}
+.covers{display:flex;gap:8px;height:calc(100% - 22px);justify-content:center}
+.covers svg{height:100%;width:auto;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.sched li{list-style:none;display:flex;align-items:center;gap:8px;font-size:11.5px;padding:2px 0;border-top:1px solid var(--line)}
+.sched li:first-child{border-top:0}
+.sched b{width:22px;color:var(--c)}
+.sched .tm{width:38px;color:var(--muted);font-variant-numeric:tabular-nums}
+.sched .ok{margin-left:auto;font-size:10px;border-radius:999px;padding:0 8px;background:var(--ok-bg);color:var(--ok);white-space:nowrap}
+.rep li{list-style:none;font-size:11.5px;padding:3px 0;line-height:1.5;border-top:1px solid var(--line)}
+.rep li:first-child{border-top:0}
+.rep .q{color:var(--muted)}
+.rep .q::before{content:"💬 "}
+.rep .ans{display:block;padding-left:12px;border-left:2px solid var(--c);margin-top:2px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.kpi small{display:block;font-size:10.5px;color:var(--muted)}
+.kpi b{font-size:17px}
+.kpi em{font-style:normal;font-size:10.5px;margin-left:4px}
+.up{color:var(--ok)} .dn{color:#b91c1c}
+.note{margin-top:6px;font-size:11.5px;background:var(--todo-bg);border-radius:6px;padding:5px 8px;color:#7c4a03}
+.spark{display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:6px}
+.spark i{flex:1;background:color-mix(in srgb,var(--c) 40%,#fff);border-radius:2px 2px 0 0}
+.shift{width:100%;border-collapse:collapse;font-size:11px}
+.shift th,.shift td{border:1px solid var(--line);padding:3px 4px;text-align:center}
+.shift th{background:var(--bg);font-weight:600;color:var(--muted)}
+.shift td.o{background:color-mix(in srgb,var(--c) 18%,#fff);color:var(--c);font-weight:600}
+.job b{display:block;font-size:13px;margin-bottom:3px}
+.job .tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px}
+.job .tags span{font-size:10.5px;background:var(--bg);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.job p{font-size:11.5px;color:var(--muted)}
+
+/* 開いたとき */
+.modal{position:fixed;inset:0;background:rgba(20,18,40,.45);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.3s;z-index:20}
+.modal.in{opacity:1;pointer-events:auto}
+.sheet{width:min(920px,92vw);max-height:88vh;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;transform:translateY(12px);transition:.3s;overflow:hidden}
+.modal.in .sheet{transform:none}
+.sh-hd{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line)}
+.sh-hd .av{width:34px;height:34px;font-size:17px;background:color-mix(in srgb,var(--c) 14%,#fff)}
+.sh-hd b{font-size:15px}
+.sh-hd small{color:var(--muted);font-size:12px;margin-left:6px}
+.sh-hd .x{margin-left:auto;color:var(--faint);font-size:12px}
+.sh-bd{padding:20px 24px 24px;overflow:auto}
+.sh-bd h5{font-size:13px;color:var(--c);margin:16px 0 8px;letter-spacing:.04em}
+.sh-bd h5:first-child{margin-top:0}
+
+/* 調査レポート */
+.scope{display:grid;grid-template-columns:repeat(4,1fr) 1.3fr;gap:8px}
+.scope div{background:var(--bg);border-radius:8px;padding:8px 10px;font-size:11.5px;color:var(--muted);line-height:1.4}
+.scope b{display:block;font-size:20px;color:var(--text)}
+.scope .sum{background:color-mix(in srgb,var(--c) 10%,#fff);color:var(--text)}
+.scope .sum b{color:var(--c)}
+.fd{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:grid;grid-template-columns:30px 1fr;gap:4px 10px}
+.fd .n{grid-row:span 3;width:26px;height:26px;border-radius:50%;background:var(--c);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.fd .h{font-weight:700;font-size:14.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.conf{font-size:10.5px;font-weight:600;border-radius:999px;padding:0 8px;background:var(--ok-bg);color:var(--ok)}
+.conf.mid{background:var(--todo-bg);color:var(--todo)}
+.fd ul{font-size:12.5px;color:#3d3c38}
+.fd li{list-style:none;padding:1px 0;display:flex;gap:6px;align-items:baseline}
+.fd li::before{content:"・";color:var(--faint)}
+.fd li .s{font-size:10.5px;border-radius:4px;padding:0 5px;background:var(--bg);color:var(--muted);white-space:nowrap;margin-left:auto}
+.fd .ac{font-size:12.5px;background:color-mix(in srgb,var(--c) 8%,#fff);border-radius:6px;padding:5px 10px}
+.fd .ac::before{content:"会議での論点 → ";color:var(--c);font-weight:600}
+.foot{font-size:11px;color:var(--faint);margin-top:4px}
+
+/* メール */
+.mail{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mail .hd{background:var(--bg);padding:10px 16px;font-size:12.5px;display:grid;grid-template-columns:52px 1fr;gap:3px 8px}
+.mail .hd span{color:var(--muted)}
+.mail .hd .sub{font-weight:700;font-size:14px}
+.mail .bd{padding:16px 20px;font-size:13.5px;line-height:1.85}
+.mail .bd p{margin-bottom:10px}
+.mail .blk{margin:6px 0 12px}
+.mail .blk b{display:block}
+.agenda{border-collapse:collapse;font-size:12.5px;margin:4px 0 0;width:100%}
+.agenda td,.agenda th{border:1px solid var(--line);padding:5px 10px;text-align:left}
+.agenda th{background:var(--bg);font-weight:600;color:var(--muted);font-size:11.5px}
+.sig{border-top:1px solid var(--line);margin-top:12px;padding-top:8px;font-size:12px;color:var(--muted);line-height:1.6}
+.mail .ft{border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:center}
+.mail .ft .att{font-size:12px;padding:3px 10px;margin:0}
+.mail .ft .hold{margin-left:auto;font-size:12px;color:var(--todo);background:var(--todo-bg);border-radius:999px;padding:2px 12px}
+
+/* SNS分析 */
+.ana{width:100%;border-collapse:collapse;font-size:12.5px}
+.ana th,.ana td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left}
+.ana th{font-size:11px;color:var(--muted);font-weight:600}
+.ana td.num{text-align:right;font-variant-numeric:tabular-nums}
+.ana tr.best td{background:color-mix(in srgb,var(--c) 7%,#fff);font-weight:600}
+.ana .barc{width:140px}
+.ana .barc i{display:block;height:8px;border-radius:4px;background:color-mix(in srgb,var(--c) 35%,#fff)}
+.ana tr.best .barc i{background:var(--c)}
+.hint2{display:flex;gap:8px;margin-top:10px}
+.hint2 div{flex:1;background:var(--bg);border-radius:8px;padding:8px 12px;font-size:12px}
+.hint2 b{display:block;font-size:13px}
+.week{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.day{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;display:flex;flex-direction:column;gap:4px}
+.day .d{display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
+.day .d b{color:var(--c)}
+.day .tt{font-weight:700;font-size:13px;line-height:1.4}
+.day .ty{font-size:10.5px;border-radius:4px;padding:0 6px;background:color-mix(in srgb,var(--c) 10%,#fff);color:var(--c);align-self:flex-start}
+.day .why{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* 表紙・投稿 */
+.covers-big{display:flex;gap:18px;justify-content:center}
+.covers-big figure{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.covers-big svg{width:220px;height:auto;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.covers-big figure b{color:var(--text)}
+.post{display:grid;grid-template-columns:290px 1fr;gap:24px;align-items:start}
+.phone{border:8px solid #1f1f1d;border-radius:28px;overflow:hidden;background:#fff;font-size:11.5px}
+.phone .pt{display:flex;align-items:center;gap:8px;padding:8px 10px}
+.phone .pt i{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#db2777);display:block}
+.phone .pt b{font-size:12px}
+.phone svg{display:block;width:100%;height:auto}
+.phone .pa{padding:6px 10px;display:flex;gap:12px;font-size:15px}
+.phone .pc{padding:0 10px 12px;line-height:1.6}
+.phone .pc .tag{color:#2563eb}
+.qlist li{list-style:none;display:grid;grid-template-columns:34px 52px 1fr auto;gap:8px;align-items:center;font-size:13px;padding:8px 0;border-bottom:1px solid var(--line)}
+.qlist b{color:var(--c)}
+.qlist .tm{color:var(--muted);font-variant-numeric:tabular-nums}
+.qlist .ok{font-size:11px;border-radius:999px;padding:1px 10px;background:var(--todo-bg);color:var(--todo);white-space:nowrap}
+.flow{margin-top:14px;display:flex;gap:6px;align-items:center;font-size:12px;flex-wrap:wrap}
+.flow span{background:var(--bg);border-radius:999px;padding:3px 10px}
+.flow span.me{background:var(--todo-bg);color:var(--todo);font-weight:600}
+.big{zoom:1.35}
+
+/* 経理 */
+.inv-al{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.inv-al div{border:1px solid #f3d9a8;background:#fffaf0;border-radius:10px;padding:10px 12px;font-size:12px;color:#5c4a33;line-height:1.6}
+.inv-al b{display:block;font-size:13.5px;color:var(--text);margin:4px 0 2px}
+.inv-al .lb{font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 8px;background:var(--todo-bg);color:var(--todo)}
+.inv-al .lb.dn2{background:#fee2e2;color:#b91c1c}
+.ana td.dn{color:#b91c1c;font-weight:600}
+/* 総務・経営 */
+.big-shift{font-size:12px}
+.big-shift th,.big-shift td{padding:5px 4px}
+.big-shift td.short{background:#fee2e2;color:#b91c1c;font-weight:700}
+.kpis-big .kpi{padding:12px 14px}
+.kpis-big .kpi b{font-size:26px}
+.kpis-big .kpi em{font-size:12px}
+/* 採用（カード） */
+.jobmini{display:flex;flex-direction:column;gap:6px;height:100%}
+.jm-hero{display:flex;gap:10px;align-items:center;border-radius:8px;padding:8px 10px;background:linear-gradient(120deg,#5b3a29,#a0673f);color:#fff}
+.jm-hero span{font-size:24px}
+.jm-hero small{display:block;font-size:10px;opacity:.85}
+.jm-hero b{font-size:14px}
+.jm-row{display:flex;gap:4px;flex-wrap:wrap}
+.jm-row span{font-size:10.5px;border-radius:999px;padding:1px 8px;background:color-mix(in srgb,var(--c) 10%,#fff);color:var(--c);font-weight:600}
+.jm-txt{font-size:11.5px;color:var(--muted)}
+/* 採用（開いたとき） */
+.jobpost{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.jp-hero{position:relative;height:170px}
+.jp-hero svg{position:absolute;inset:0;width:100%;height:100%}
+.jp-cap{position:absolute;left:28px;top:30px;color:#fff}
+.jp-cap small{font-size:12px;opacity:.85}
+.jp-cap h3{font-size:28px;margin:4px 0}
+.jp-cap p{font-size:14px;opacity:.92}
+.jp-tags{display:flex;gap:6px;flex-wrap:wrap;padding:14px 24px 0}
+.jp-tags span{font-size:12px;font-weight:600;border-radius:999px;padding:3px 12px;background:#f5efe8;color:#7a4a2a}
+.jp-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:22px;padding:16px 24px 20px}
+.jp-main h4{font-size:14px;margin:12px 0 4px;padding-left:8px;border-left:3px solid #a0673f}
+.jp-main h4:first-child{margin-top:0}
+.jp-main p{font-size:13px;line-height:1.8;color:#3d3c38}
+.jp-flow li{list-style:none;font-size:13px;padding:3px 0;display:flex;gap:12px}
+.jp-flow b{width:44px;color:#a0673f;font-variant-numeric:tabular-nums}
+.jp-side dl{display:grid;grid-template-columns:56px 1fr;gap:6px 10px;font-size:13px;background:#faf7f3;border-radius:10px;padding:14px}
+.jp-side dt{color:var(--muted);font-size:12px}
+.jp-voice{margin-top:10px;font-size:12.5px;line-height:1.7;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.jp-voice b{display:block;margin-bottom:2px}
+.jp-apply{margin-top:10px;text-align:center;background:#a0673f;color:#fff;font-weight:700;border-radius:10px;padding:10px}
+.jp-out{border-top:1px solid var(--line);padding:10px 24px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;background:var(--bg)}
+.jp-out span{background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 10px}
+.jp-out .hold{margin-left:auto;background:var(--todo-bg);border-color:#f3d9a8;color:var(--todo)}
+
+/* 裏側 */
+.back{position:absolute;inset:14px;border-radius:16px;background:rgba(30,27,75,.95);color:#fff;display:flex;flex-direction:column;justify-content:center;padding:40px 48px;opacity:0;pointer-events:none;transition:.5s}
+.back.in{opacity:1}
+.back h3{font-size:24px;margin-bottom:6px}
+.back .lead{color:#c7d2fe;margin-bottom:26px;font-size:14px}
+.skills{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.sk{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:18px;opacity:0;transform:translateY(10px);transition:.5s}
+.back.in .sk{opacity:1;transform:none}
+.back.in .sk:nth-child(2){transition-delay:.25s}
+.back.in .sk:nth-child(3){transition-delay:.5s}
+.sk span{font-size:28px}
+.sk b{display:block;font-size:16px;margin:6px 0 4px}
+.sk p{font-size:13px;color:#dbe0ff;line-height:1.7}
+.ask{margin-top:28px;font-size:18px;font-weight:600;opacity:0;transition:.5s .9s}
+.back.in .ask{opacity:1}
+
+.disc{position:fixed;right:14px;bottom:8px;font-size:11px;color:var(--faint);background:rgba(246,245,242,.9);padding:1px 6px;border-radius:4px;z-index:30}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">✦</div>
+    <div class="name">My AI Team</div>
+    <a class="backlink" href="index.html">◀ 単体のデモ</a>
+    <a class="backlink" href="workflow.html" style="margin-left:0">自動ワークフロー</a>
+    <div class="tabs" id="tabs"></div>
+    <div class="hint"><kbd>Enter</kbd> 依頼→実行→裏側　カードをクリックで中身　<kbd>1</kbd>〜<kbd>3</kbd> 切替　<kbd>R</kbd> 最初から</div>
+  </div>
+  <div class="main">
+    <div class="me">
+      <div class="me-head"><div class="av" id="meAv">🙂</div><div><b id="meName"></b><span>あなたの分身AI ・ チームのまとめ役</span></div></div>
+      <div class="me-body" id="thread"></div>
+      <div class="inbar"><div class="inp ph" id="inp">分身AIに頼みたいことを入力…</div><button class="go" id="go">頼む ↵</button></div>
+    </div>
+    <div class="team" id="team"></div>
+  </div>
+</div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="disc">※ 画面・データはデモ用の架空のものです</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let timers = [], state = "idle", cur = 0;
+const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+// ====== 表紙（SVGで描く） ======
+function plate(cx, cy, r, foods){
+  return `<circle cx="${cx}" cy="${cy+3}" r="${r}" fill="rgba(0,0,0,.18)"/>
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="#fbf7ef"/><circle cx="${cx}" cy="${cy}" r="${r*0.78}" fill="#f3ece0"/>
+  ${foods}`;
+}
+const FOOD_A = (cx,cy,s)=>`
+  <ellipse cx="${cx-14*s}" cy="${cy-8*s}" rx="${15*s}" ry="${11*s}" fill="#c2410c"/><ellipse cx="${cx-17*s}" cy="${cy-11*s}" rx="${5*s}" ry="${3*s}" fill="#fb923c" opacity=".8"/>
+  <ellipse cx="${cx+14*s}" cy="${cy-6*s}" rx="${13*s}" ry="${10*s}" fill="#65a30d"/><circle cx="${cx+10*s}" cy="${cy-9*s}" r="${3*s}" fill="#a3e635"/><circle cx="${cx+18*s}" cy="${cy-4*s}" r="${2.5*s}" fill="#a3e635"/>
+  <ellipse cx="${cx}" cy="${cy+13*s}" rx="${16*s}" ry="${10*s}" fill="#facc15"/><ellipse cx="${cx-4*s}" cy="${cy+10*s}" rx="${6*s}" ry="${3*s}" fill="#fef08a"/>`;
+const COVERS = [
+  { name:"A案：写真風・落ち着いた色", svg:()=>`<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a3427"/><stop offset="1" stop-color="#22160f"/></linearGradient></defs>
+    <rect width="160" height="200" fill="url(#ga)"/>
+    ${[18,46,74,102,130,158].map(y=>`<rect x="0" y="${y}" width="160" height="1" fill="rgba(255,255,255,.05)"/>`).join("")}
+    ${plate(112,138,44,FOOD_A(112,138,1.1))}
+    <rect x="12" y="16" width="62" height="16" rx="8" fill="#f59e0b"/><text x="43" y="27.5" font-size="9" font-weight="700" fill="#22160f" text-anchor="middle">日曜30分で</text>
+    <text x="12" y="62" font-size="21" font-weight="800" fill="#fff">平日がラク</text>
+    <text x="12" y="84" font-size="13" font-weight="700" fill="#fde68a">作り置き</text>
+    <text x="12" y="122" font-size="46" font-weight="800" fill="#fff">3</text><text x="42" y="122" font-size="15" font-weight="800" fill="#fff">品</text>
+    <text x="12" y="186" font-size="8" fill="rgba(255,255,255,.7)">保存して週末に作ってね</text></svg>`},
+  { name:"B案：明るく・すっきり", svg:()=>`<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="160" height="200" fill="#f7f1e7"/>
+    <circle cx="150" cy="40" r="60" fill="#fde2c8"/>
+    ${plate(80,128,48,FOOD_A(80,128,1.2))}
+    <text x="14" y="34" font-size="10" font-weight="700" fill="#ea580c">＼ 保存版 ／</text>
+    <text x="14" y="58" font-size="19" font-weight="800" fill="#2b2118">3日もつ</text>
+    <text x="14" y="80" font-size="19" font-weight="800" fill="#2b2118">作り置きおかず</text>
+    <rect x="14" y="184" width="132" height="1" fill="#e7dccb"/>
+    <text x="14" y="195" font-size="7.5" fill="#8a7a66">おうちごはん教室｜冷蔵で3日OK</text></svg>`},
+  { name:"C案：ポップ・目立つ", svg:()=>`<svg viewBox="0 0 160 200" xmlns="http://www.w3.org/2000/svg">
+    <rect width="160" height="200" fill="#0f766e"/>
+    <rect y="112" width="160" height="88" fill="#ecfdf5"/>
+    <circle cx="44" cy="150" r="24" fill="#fff"/><circle cx="44" cy="150" r="17" fill="#c2410c"/>
+    <circle cx="96" cy="160" r="22" fill="#fff"/><circle cx="96" cy="160" r="15" fill="#65a30d"/>
+    <circle cx="138" cy="146" r="20" fill="#fff"/><circle cx="138" cy="146" r="13" fill="#facc15"/>
+    <text x="14" y="32" font-size="10" font-weight="700" fill="#99f6e4">10分×3品</text>
+    <text x="14" y="62" font-size="24" font-weight="800" fill="#fff">作り置き</text>
+    <text x="14" y="92" font-size="24" font-weight="800" fill="#fde047">はじめ方</text>
+    <rect x="96" y="20" width="52" height="20" rx="10" fill="#fde047"/><text x="122" y="33.5" font-size="9" font-weight="800" fill="#0f766e" text-anchor="middle">初心者向け</text>
+    <text x="14" y="194" font-size="7.5" fill="#0f766e">おうちごはん教室</text></svg>`},
+];
+
+// ====== 3つのチーム（すべて架空） ======
+const TEAMS = [
+{
+  tab:"会社の仕事", owner:"佐藤さん", meIcon:"👔",
+  prompt:"明日の定例会議の準備を、みんなで進めておいて。",
+  intro:"了解です。準備を4つに分けて、それぞれのAIに頼みます。",
+  done:"4つともできました。外に出す前に、佐藤さんに見てほしいものが2つあります。",
+  review:[["📨","参加者への案内メール","送る前に確認"],["📊","会議資料3枚","内容を確認"]],
+  members:[
+    {icon:"🔎", name:"調べものAI", role:"情報を集めて、分かったことをまとめる", c:"#0f9488", task:"業界の動きを調べて、論点を出す",
+     logs:["ニュース・調査レポート・各社の発表を集めています","信頼できる情報を12件に絞りました","分かったことを3つにまとめました"],
+     scan:{label:"確認した情報", total:48, items:[["ニュース","問い合わせ対応にAI、導入企業が拡大"],["調査","業界団体：窓口業務の実態調査"],["各社の発表","A社 夜間の自動応答を開始"],["ニュース","展示会、オンライン併用が主流に"],["各社の発表","B社 価格改定のお知らせ"],["調査","展示会来場者アンケート"],["自社データ","問い合わせ記録（7〜10月）"],["各社の発表","C社 サポート体制の見直し"],["ニュース","仕入れ価格の上昇続く"],["各社の発表","D社 料金体系を変更"]]},
+     out:()=>`<div class="r-t"><span>業界の動き 調査まとめ</span><span>開く ↗</span></div>
+       <div class="stats"><div><b>48件</b>確認した情報</div><div><b>12件</b>信頼できる情報</div><div><b>3つ</b>分かったこと</div></div>
+       <ul class="finds"><li><span>1</span>問い合わせ窓口にAIを入れる会社が増えている</li><li><span>2</span>展示会は「オンライン併用」が主流に</li><li><span>3</span>同業で価格の見直しが続いている</li></ul>`,
+     full:()=>`<h5>調べた範囲</h5>
+       <div class="scope"><div><b>26</b>ニュース記事</div><div><b>11</b>同業他社の発表</div><div><b>4</b>業界団体の調査</div><div><b>7</b>自社の問い合わせ記録</div><div class="sum"><b>48 → 12件</b>新しさと信頼できるかで絞り込み</div></div>
+       <h5>分かったこと</h5>
+       <div class="fd"><div class="n">1</div><div class="h">問い合わせ窓口にAIを入れる会社が増えている<span class="conf">確かさ：高</span></div>
+         <ul><li>同業の大手3社（A社・B社・C社）が、今年に入って自動応答の導入を発表<span class="s">各社の発表</span></li>
+         <li>業界団体の調査で「導入済み・検討中」が半数を超えた<span class="s">業界団体の調査</span></li>
+         <li>うちでも夜（18時以降）の問い合わせが、7月より約3割多い<span class="s">自社データ</span></li></ul>
+         <div class="ac">夜の問い合わせへの一次対応を、どうするか</div></div>
+       <div class="fd"><div class="n">2</div><div class="h">展示会は「オンライン併用」が主流に<span class="conf">確かさ：高</span></div>
+         <ul><li>主な展示会3つのうち2つが、今年からオンライン併用に<span class="s">ニュース</span></li>
+         <li>来場前にWebで出展資料を見てから来る人が増えている<span class="s">来場者アンケート</span></li></ul>
+         <div class="ac">来月の展示会で、資料を事前に公開するか</div></div>
+       <div class="fd"><div class="n">3</div><div class="h">同業で価格の見直しが続いている<span class="conf mid">確かさ：中</span></div>
+         <ul><li>競合5社のうち3社が値上げを発表（幅は5〜8%）<span class="s">各社の発表</span></li>
+         <li>理由はどこも「仕入れ値と人件費の上昇」<span class="s">ニュース</span></li>
+         <li>残り2社は未発表のため、今後の動きは要確認<span class="s">各社の発表</span></li></ul>
+         <div class="ac">保留中の価格改定を、次回いつ判断するか</div></div>
+       <div class="foot">出典12件の一覧と、元の記事へのリンクは「業界調査まとめ.pdf」に添付しています</div>`},
+    {icon:"📈", name:"数字AI", role:"実績をグラフにする", c:"#2563eb", task:"先月までの問い合わせ件数をグラフにする",
+     logs:["表のデータを読み込みました","月ごとに集計しています","グラフにしました"],
+     out:()=>`<div class="r-t"><span>問い合わせ件数（月別）</span><span>4か月分</span></div><div class="chart">
+       ${[["7月",112],["8月",98],["9月",126],["10月",141]].map(d=>`<div><em>${d[1]}</em><i data-h="${Math.round(d[1]/141*85)}"></i>${d[0]}</div>`).join("")}</div>
+       <div class="cap">10月がいちばん多い。夜の問い合わせが増えている</div>`},
+    {icon:"🗂", name:"資料AI", role:"会議資料をつくる", c:"#4f46e5", task:"調べものと数字から会議資料を3枚つくる",
+     logs:["調べものAI・数字AIの結果を受け取りました","結論→理由→次の打ち手の順に並べました","3枚の資料にしました"],
+     out:()=>`<div class="r-t"><span>定例会議資料</span><span>3枚</span></div><div class="slides">
+       <div class="sl"><small>営業企画 定例</small><b>10月の振り返りと 来月の進め方</b><i style="width:60%"></i><i style="width:40%"></i></div>
+       <div class="sl"><b>問い合わせは 10月が最多</b><div class="mini">${[55,48,62,70].map(h=>`<span style="height:${h}%"></span>`).join("")}</div></div>
+       <div class="sl"><b>次の打ち手 （夜間・展示会・価格）</b><i></i><i style="width:85%"></i><i style="width:70%"></i><i style="width:50%"></i></div></div>`},
+    {icon:"✉️", name:"連絡AI", role:"メール・連絡をする", c:"#c2410c", task:"参加者への案内メールを書く",
+     logs:["参加者5名と部長の予定を確認しました","資料AIの資料と調べものAIのまとめを添付しました","案内メールを書きました（送信は保留）"],
+     out:()=>`<div class="r-t"><span>案内メール（送信前）</span><span>開く ↗</span></div>
+       <div class="mhd">宛先：<b>定例会議の参加者 5名</b>　CC：<b>山本部長</b><br>件名：<b>【明日10:00〜】営業企画 定例会議のご案内と事前資料の共有</b></div>
+       <div class="mbd">営業企画部の皆さま　お疲れさまです。佐藤です。<br>明日の定例会議について、日時・議題と事前資料をお送りします…</div>
+       <span class="att">📎 定例会議資料.pdf</span><span class="att">📎 業界調査まとめ.pdf</span>`,
+     full:()=>`<div class="mail">
+       <div class="hd"><span>宛先</span><div>営業企画部 定例会議 参加者（5名）</div><span>CC</span><div>山本部長</div><span>件名</span><div class="sub">【明日10:00〜】営業企画 定例会議のご案内と事前資料の共有</div></div>
+       <div class="bd">
+         <p>営業企画部の皆さま<br>（CC：山本部長）</p>
+         <p>お疲れさまです。佐藤です。<br>明日の定例会議について、日時・議題と事前資料をお送りします。<br>今回は「業界の動きを踏まえた次の打ち手」を中心に話し合いたいと考えています。</p>
+         <div class="blk"><b>■ 日時・場所</b>11月11日（水）10:00〜11:00　第2会議室（オンライン参加も可）</div>
+         <div class="blk"><b>■ 議題</b>
+           <table class="agenda"><tr><th>時間</th><th>内容</th><th>担当</th></tr>
+           <tr><td>10:00</td><td>10月の振り返り（問い合わせ件数の推移）</td><td>佐藤</td></tr>
+           <tr><td>10:15</td><td>業界の動き3点と、うちへの影響</td><td>佐藤</td></tr>
+           <tr><td>10:30</td><td>次の打ち手の検討（夜の問い合わせ対応・展示会・価格改定）</td><td>全員</td></tr>
+           <tr><td>10:55</td><td>決定事項と担当・期限の確認</td><td>佐藤</td></tr></table></div>
+         <div class="blk"><b>■ 事前にお願いしたいこと</b>
+           ・資料3枚目「次の打ち手」に目を通し、ご意見を1つずつお持ちください<br>
+           ・価格改定について、担当のお客さまから反応があれば共有をお願いします</div>
+         <p>ご都合が悪くなった場合や、議題の追加がある場合は、本日17時までにご連絡ください。<br>どうぞよろしくお願いいたします。</p>
+         <div class="sig">────────────<br>営業企画部　佐藤 一郎<br>内線：1234　／　社用携帯：080-0000-0000</div>
+       </div>
+       <div class="ft"><span class="att">📎 定例会議資料_1111.pdf</span><span class="att">📎 業界調査まとめ.pdf</span><span class="hold">⏸ 佐藤さんの確認待ち（送信は保留中）</span></div></div>`},
+  ]
+},
+{
+  tab:"SNS・発信", owner:"田中さん", meIcon:"📷",
+  prompt:"来週のインスタの投稿、まとめて準備しておいて。",
+  intro:"了解です。調べる・書く・つくる・投稿するの4つに分けて頼みます。",
+  done:"来週5日分の投稿を予約するところまで準備できました。田中さんがOKすれば、そのまま自動で投稿します。",
+  review:[["🗓","5日分の自動投稿","OKで予約を確定"],["🎨","表紙の画像（3案から1つ）","選んでください"]],
+  members:[
+    {icon:"📊", name:"リサーチ・企画AI", role:"伸びている投稿を調べて、企画を立てる", c:"#db2777", task:"伸びている投稿を調べて、5日分を企画する",
+     logs:["同じジャンルの人気投稿を集めています","反応が多い「投稿の型」と時間帯を調べました","根拠つきで5日分を企画しました"],
+     scan:{label:"分析した投稿", total:320, items:[["保存 1.8千","10分で3品！平日の作り置き"],["保存 1.2千","1週間の作り置き献立"],["コメント 96","卵焼き、失敗しないコツ"],["保存 980","冷凍できるおかず5選"],["保存 410","お弁当の詰め方3パターン"],["いいね 2.1千","秋のさつまいもレシピ"],["保存 1.5千","5分でできる副菜"],["コメント 74","味が決まらない人へ"],["保存 860","買い物リストつき献立"],["いいね 640","教室の様子・生徒さんの作品"]]},
+     out:()=>`<div class="r-t"><span>320投稿の分析：保存されやすい型</span><span>開く ↗</span></div>
+       <ul class="tbars">${[["数字入りの時短レシピ",8.2,1],["1週間の作り置き献立",6.9],["失敗しないコツ",5.4],["教室・日常の様子",1.6]].map(r=>`<li class="${r[2]?"best":""}"><span>${r[0]}</span><i style="width:${r[1]/8.2*100}%"></i><em>${r[1]}%</em></li>`).join("")}</ul>
+       <div class="reco">→ 来週は「数字入りの時短レシピ」を軸に5本。投稿は19〜21時</div>`,
+     full:()=>`<h5>調べたこと：料理・作り置きジャンルの人気投稿 320件（直近3か月）</h5>
+       <table class="ana"><tr><th>投稿の型</th><th>例</th><th class="num">平均の保存数</th><th class="num">保存率</th><th></th><th>傾向</th></tr>
+       ${[["数字入りの時短レシピ","「10分で3品」","1,240",8.2,"保存されやすい。あとで作る人が多い",1],["1週間の作り置き献立","「月〜金の献立」","980",6.9,"日曜の朝に伸びる"],["失敗しないコツ","「卵焼きのコツ」","760",5.4,"コメントが集まりやすい"],["教室・日常の様子","「今日のレッスン」","210",1.6,"数は少ないが、申し込みにつながりやすい"]].map(r=>`<tr class="${r[5]?"best":""}"><td>${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}%</td><td class="barc"><i style="width:${r[3]/8.2*100}%"></i></td><td>${r[4]}</td></tr>`).join("")}</table>
+       <div class="hint2"><div><b>⏰ 反応が多い時間</b>平日 19〜21時／日曜 10時台</div><div><b>📌 田中さんの過去30投稿</b>保存が多いのは「作り置き」系。「教室の様子」は申し込みにつながりやすい</div><div><b>✍️ 伸びている言葉</b>「〇分で」「〇品」「保存版」「失敗しない」</div></div>
+       <h5>来週の企画（5日分）</h5>
+       <div class="week">${[["月","19:00","日曜30分で、平日がラクになる作り置き3品","数字入りの時短","いちばん保存される型で、週の始めに"],["火","20:00","10分でできる、鶏むねの主菜","数字入りの時短","平日夜に作りたくなる時間に"],["水","19:30","さつまいもの甘煮、失敗しないコツ","失敗しないコツ","コメントを集めて、つながりを増やす"],["木","20:00","来週の作り置き献立（買い物リストつき）","1週間の献立","週末の買い物前に保存してもらう"],["金","19:00","今週の教室の様子と、次回のご案内","教室・日常","見てくれた人を教室の案内へ"]].map(d=>`<div class="day"><div class="d"><b>${d[0]}曜</b>${d[1]}</div><div class="tt">${d[2]}</div><span class="ty">${d[3]}</span><div class="why">${d[4]}</div></div>`).join("")}</div>`},
+    {icon:"✍️", name:"文章AI", role:"投稿の文章を書く", c:"#7c3aed", task:"5日分のキャプションを書く",
+     logs:["企画AIの5日分の企画を受け取りました","田中さんのいつもの言葉づかいに合わせています","5日分の文章とハッシュタグを書きました"],
+     out:()=>`<div class="r-t"><span>月曜の投稿文</span><span>5日分のうち1つ ・ 開く ↗</span></div><div class="txt">
+       日曜に30分だけ。平日がぐっとラクになる「作り置き3品」を紹介します🍲<br>どれも冷蔵で3日OK。忙しい週の味方です。<br>
+       <span class="tag">#作り置き #作り置きレシピ #平日ごはん #おうちごはん</span></div>`,
+     full:()=>`<div class="post"><div></div><div></div></div>`},
+    {icon:"🎨", name:"画像AI", role:"表紙の画像をつくる", c:"#ea580c", task:"表紙の画像を3案つくる",
+     logs:["文章AIの文章から、見出しの言葉を選びました","保存されやすい表紙のデザインを参考にしています","表紙を3案つくりました"],
+     out:()=>`<div class="r-t"><span>月曜の表紙</span><span>3案 ・ 開く ↗</span></div><div class="covers">${COVERS.map(c=>c.svg()).join("")}</div>`,
+     full:()=>`<h5>月曜の表紙：3案</h5><div class="covers-big">${COVERS.map((c,i)=>`<figure>${c.svg()}<b>${c.name}</b>${i===0?"おすすめ：数字が目に入りやすい":i===1?"教室の雰囲気に近い":"初めての人に届きやすい"}</figure>`).join("")}</div>`},
+    {icon:"🚀", name:"投稿AI", role:"予約して、自動で投稿する", c:"#0891b2", task:"反応が多い時間に、5日分を予約する",
+     logs:["企画AIの「反応が多い時間」を受け取りました","画像と文章を5日分セットにしました","予約を準備しました（田中さんのOKで確定）"],
+     out:()=>`<div class="r-t"><span>来週の自動投稿</span><span>5件 ・ 開く ↗</span></div><ul class="sched">
+       ${[["月","19:00","作り置き3品"],["火","20:00","10分の主菜"],["水","19:30","失敗しないコツ"],["木","20:00","来週の献立"],["金","19:00","教室の様子"]].map(r=>`<li><b>${r[0]}</b><span class="tm">${r[1]}</span>${r[2]}<span class="ok">予約準備OK</span></li>`).join("")}</ul>`,
+     full:()=>`<div class="post">
+       <div class="phone"><div class="pt"><i></i><b>ouchigohan_kyoshitsu</b></div>${COVERS[0].svg()}
+         <div class="pa">♡ 💬 ↗</div>
+         <div class="pc"><b>ouchigohan_kyoshitsu</b> 日曜に30分だけ。平日がぐっとラクになる「作り置き3品」を紹介します🍲 どれも冷蔵で3日OK。<br><span class="tag">#作り置き #平日ごはん #おうちごはん</span></div></div>
+       <div><h5>自動投稿のスケジュール</h5><ul class="qlist">
+         ${[["月","19:00","日曜30分で、平日がラクになる作り置き3品"],["火","20:00","10分でできる、鶏むねの主菜"],["水","19:30","さつまいもの甘煮、失敗しないコツ"],["木","20:00","来週の作り置き献立（買い物リストつき）"],["金","19:00","今週の教室の様子と、次回のご案内"]].map(r=>`<li><b>${r[0]}曜</b><span class="tm">${r[1]}</span>${r[2]}<span class="ok">OK待ち</span></li>`).join("")}</ul>
+         <div class="flow"><span>企画AI</span>→<span>文章AI</span>→<span>画像AI</span>→<span class="me">田中さんがOK</span>→<span>決まった時間に自動で投稿</span></div>
+         <div class="foot" style="margin-top:10px">投稿したあとの反応は、リサーチ・企画AIが集めて、次の週の企画に使います</div></div></div>`},
+  ]
+},
+{
+  tab:"お店・経営", owner:"鈴木さん", meIcon:"☕",
+  prompt:"今月の締めと、来月の準備を進めておいて。",
+  intro:"了解です。経理・総務・経営・採用の4つに分けて頼みます。",
+  done:"締めと来月の準備ができました。鈴木さんに見てほしいものが2つあります。",
+  review:[["🧾","気になる請求書 3件","支払い前に確認"],["📝","求人票の公開","公開前に確認"]],
+  fin:[4600,4200,6400,7600],
+  members:[
+    {icon:"🧾", name:"経理AI", role:"請求書を仕分けて、まとめる", c:"#b45309", task:"今月の請求書を仕分けて、支払いをまとめる",
+     logs:["メール・紙・PDFの請求書を読み込んでいます","取引先と科目ごとに仕分けました","支払い予定と、気になる3件をまとめました"],
+     scan:{label:"読み込んだ請求書", total:186, items:[["PDF","○○珈琲商会 11月分 ¥184,800"],["紙","青葉ミルク 乳製品 ¥96,250"],["メール","ベーカリー森 パン ¥58,300"],["PDF","でんき（11月）¥72,410"],["紙","ひかり青果 野菜・果物 ¥41,980"],["メール","包材のヤマト 紙カップ ¥22,000"],["PDF","○○珈琲商会 追加分 ¥18,700"],["紙","クリーニング白石 ¥8,800"],["メール","ネット回線 11月分 ¥5,280"],["PDF","青葉ミルク 乳製品 ¥96,250"]]},
+     out:()=>`<div class="r-t"><span>11月の請求書まとめ</span><span>開く ↗</span></div>
+       <div class="stats"><div><b>186件</b>読み込んだ</div><div><b>¥1,428,600</b>支払い合計</div><div><b style="color:#b91c1c">3件</b>気になる請求書</div></div>
+       <ul class="tbars">${[["食材・仕入れ",62],["光熱費・家賃",21],["包材・消耗品",9],["その他",8]].map((r,i)=>`<li class="${i?"":"best"}"><span>${r[0]}</span><i style="width:${r[1]/62*100}%"></i><em>${r[1]}%</em></li>`).join("")}</ul>`,
+     full:()=>`<h5>読み込んだ請求書</h5>
+       <div class="scope"><div><b>98</b>PDF</div><div><b>61</b>メール本文</div><div><b>27</b>紙（写真）</div><div><b>23</b>取引先</div><div class="sum"><b>186件 仕分け済み</b>合計 ¥1,428,600</div></div>
+       <h5>⚠ 支払い前に確認してほしい請求書</h5>
+       <div class="inv-al">
+         <div><span class="lb dn2">二重の可能性</span><b>青葉ミルク　¥96,250</b>11/5と11/8に、同じ金額・同じ明細の請求書が2通届いています</div>
+         <div><span class="lb">金額が違う</span><b>○○珈琲商会　¥18,700</b>注文書は ¥17,000。送料の追加か、取引先に確認が必要です</div>
+         <div><span class="lb">期限が近い</span><b>ひかり青果　¥41,980</b>支払い期限が11/14（あと4日）です</div></div>
+       <h5>取引先・科目ごとのまとめ</h5>
+       <table class="ana"><tr><th>取引先</th><th>科目</th><th class="num">件数</th><th class="num">金額</th><th class="num">先月比</th><th>支払い期限</th></tr>
+       ${[["○○珈琲商会","食材・仕入れ",6,"¥203,500","+12%","11/30"],["青葉ミルク","食材・仕入れ",9,"¥192,500","+9%","11/30"],["ベーカリー森","食材・仕入れ",12,"¥171,400","+1%","11/25"],["ひかり青果","食材・仕入れ",15,"¥124,600","−3%","11/14"],["家賃・光熱費","光熱費・家賃",4,"¥301,800","+4%","11/27"],["包材のヤマト","包材・消耗品",5,"¥128,600","+2%","11/30"],["ほか17社","その他",135,"¥306,200","±0%","—"]].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td><td class="num ${r[4].startsWith("+1")||r[4]==="+9%"?"dn":""}">${r[4]}</td><td>${r[5]}</td></tr>`).join("")}</table>
+       <div class="foot">仕分けた結果は会計ソフト用の形でも書き出してあります。値上がりした取引先の情報は、経営AIに渡しました</div>`},
+    {icon:"🗓", name:"総務AI", role:"シフトや段取り", c:"#0f9488", task:"来月前半のシフト表をつくる",
+     logs:["スタッフ4名の希望を読み込みました","人が足りない日がないか確認しています","シフト表をつくりました（土日に1人足りません）"],
+     out:()=>`<div class="r-t"><span>来月のシフト（第1週）</span><span>4名 ・ 開く ↗</span></div><table class="shift">
+       <tr><th></th>${["月","火","水","木","金","土","日"].map(d=>`<th>${d}</th>`).join("")}</tr>
+       ${[["木村","ooxooox"],["林","xooxooo"],["森","ooxoxoo"],["高橋","xooooxo"]].map(r=>`<tr><th>${r[0]}</th>${[...r[1]].map(c=>c==="o"?`<td class="o">○</td>`:`<td>－</td>`).join("")}</tr>`).join("")}</table>
+       <div class="cap">⚠ 土日は1人足りない → 採用AIに募集を依頼しました</div>`,
+     full:()=>`<h5>来月のシフト（前半2週間）</h5><table class="shift big-shift">
+       <tr><th></th>${[...Array(14)].map((_,i)=>`<th>${i+1}<br>${"月火水木金土日"[i%7]}</th>`).join("")}</tr>
+       ${[["木村","ooxoooxooxooox"],["林","xooxoooxooxooo"],["森","ooxoxooooxoxoo"],["高橋","xooooxoxooooxo"]].map(r=>`<tr><th>${r[0]}</th>${[...r[1]].map(c=>c==="o"?`<td class="o">○</td>`:`<td>－</td>`).join("")}</tr>`).join("")}
+       <tr><th>足りない</th>${[...Array(14)].map((_,i)=>`<td class="${i%7>=5?"short":""}">${i%7>=5?"−1":""}</td>`).join("")}</tr></table>
+       <div class="hint2"><div><b>✅ 希望はすべて反映</b>4名の休み希望 9日分をすべて入れました</div><div><b>⚠ 土日に1人ずつ不足</b>土日は3名必要なところ2名。4日分が足りません</div><div><b>➡ 採用AIへ</b>「土日に入れる人」の募集を依頼しました</div></div>`},
+    {icon:"📊", name:"経営AI", role:"お店の数字を見て、打ち手を出す", c:"#2563eb", task:"今月の数字をまとめて、来月の打ち手を出す",
+     logs:["レジのデータと、経理AIの仕入れのまとめを受け取りました","先月・去年の同じ月と比べています","原価率が上がった原因と、打ち手をまとめました"],
+     out:()=>`<div class="r-t"><span>今月のまとめ</span><span>カフェ こもれび ・ 開く ↗</span></div><div class="kpis">
+       <div class="kpi"><small>来店数</small><b>1,284</b><em class="up">先月より↑</em></div>
+       <div class="kpi"><small>客単価</small><b>¥980</b><em class="dn">先月より↓</em></div>
+       <div class="kpi"><small>原価率</small><b>34%</b><em class="dn">先月より↑</em></div></div>
+       <div class="spark">${[40,52,47,60,58,66,62,71,69,75,72,80].map(h=>`<i style="height:${h}%"></i>`).join("")}</div>
+       <div class="note">⚠ 原価率が上昇。原因はコーヒー豆と乳製品の値上がり</div>`,
+     full:()=>`<h5>今月の数字（カフェ こもれび）</h5>
+       <div class="kpis kpis-big">
+         <div class="kpi"><small>来店数</small><b>1,284人</b><em class="up">先月 +6%</em></div>
+         <div class="kpi"><small>客単価</small><b>¥980</b><em class="dn">先月 −¥40</em></div>
+         <div class="kpi"><small>原価率</small><b>34%</b><em class="dn">先月 +3pt</em></div></div>
+       <h5>原価率が上がった原因（経理AIの請求書まとめから）</h5>
+       <table class="ana"><tr><th>食材</th><th>取引先</th><th class="num">仕入れ値の変化</th><th>影響が大きいメニュー</th></tr>
+         <tr class="best"><td>コーヒー豆</td><td>○○珈琲商会</td><td class="num">+12%</td><td>ブレンド・カフェラテ</td></tr>
+         <tr><td>牛乳・生クリーム</td><td>青葉ミルク</td><td class="num">+9%</td><td>カフェラテ・ケーキ</td></tr>
+         <tr><td>野菜・果物</td><td>ひかり青果</td><td class="num">−3%</td><td>サンドイッチ</td></tr></table>
+       <h5>来月の打ち手（案）</h5>
+       <div class="hint2"><div><b>① セットメニューを見直す</b>ケーキとドリンクのセットを、原価の低い組み合わせ中心に</div><div><b>② 仕入れ先を比べる</b>コーヒー豆の見積もりを、ほか2社から取る（下書き済み）</div><div><b>③ 値上げは保留</b>客単価が下がっているため、今月は様子を見る</div></div>
+       <div class="foot">決めるのは鈴木さんです。どれを進めるか選ぶと、関係するAIに作業を頼みます</div>`},
+    {icon:"🤝", name:"採用AI", role:"求人票をつくって、募集する", c:"#7c3aed", task:"土日のスタッフの求人票をつくる",
+     logs:["総務AIから「土日に1人不足」を受け取りました","近くの同じような求人と、お店の雰囲気を調べました","求人票をつくりました（公開は保留）"],
+     out:()=>`<div class="jobmini">
+       <div class="jm-hero"><span>☕</span><div><small>カフェ こもれび｜アルバイト</small><b>土日のホールスタッフ募集</b></div></div>
+       <div class="jm-row"><span>時給 ¥1,200〜</span><span>週1日〜OK</span><span>未経験歓迎</span><span>まかないあり</span></div>
+       <div class="jm-txt">コーヒーの香りに包まれて働きませんか。最初の1か月は先輩が一緒に入ります。</div></div>`,
+     full:()=>`<div class="jobpost">
+       <div class="jp-hero">
+         <svg viewBox="0 0 600 170" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="jg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5b3a29"/><stop offset="1" stop-color="#a0673f"/></linearGradient></defs>
+           <rect width="600" height="170" fill="url(#jg)"/><circle cx="520" cy="40" r="90" fill="rgba(255,255,255,.07)"/><circle cx="470" cy="150" r="60" fill="rgba(255,255,255,.05)"/>
+           <g transform="translate(470 95)"><ellipse cx="0" cy="38" rx="62" ry="10" fill="rgba(0,0,0,.2)"/><path d="M-40 -10 h80 v26 a40 40 0 0 1 -80 0z" fill="#fbf7ef"/><path d="M40 -2 a14 14 0 0 1 0 26" stroke="#fbf7ef" stroke-width="7" fill="none"/><ellipse cx="0" cy="-10" rx="40" ry="8" fill="#6b3f22"/><path d="M-12 -30 q6 -10 0 -20 M6 -30 q6 -10 0 -20" stroke="rgba(255,255,255,.55)" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+         </svg>
+         <div class="jp-cap"><small>カフェ こもれび ｜ アルバイト・パート</small><h3>土日のホールスタッフ募集</h3><p>コーヒーの香りに包まれて、週末だけ働きませんか</p></div>
+       </div>
+       <div class="jp-tags"><span>週1日・1日4時間〜OK</span><span>未経験歓迎</span><span>まかない無料</span><span>交通費支給</span><span>髪型・ネイル自由</span></div>
+       <div class="jp-grid">
+         <div class="jp-main">
+           <h4>こんなお仕事です</h4><p>ご注文の受付、ドリンクとケーキの提供、片づけなどのホールのお仕事です。コーヒーのいれ方は、慣れてきたら少しずつお教えします。</p>
+           <h4>1日の流れ（土曜の例）</h4>
+           <ul class="jp-flow"><li><b>9:30</b>出勤・開店の準備</li><li><b>10:00</b>開店。モーニングのご注文が中心</li><li><b>12:00</b>ランチで一番にぎわう時間</li><li><b>14:00</b>交代で休憩（まかないつき）</li><li><b>17:00</b>片づけをして退勤</li></ul>
+           <h4>こんな方に来てほしい</h4><p>・人と話すのが好きな方　・カフェで働いてみたかった方　・平日は学校や本業がある方</p>
+         </div>
+         <div class="jp-side">
+           <dl><dt>給与</dt><dd>時給 ¥1,200〜（研修中も同じ）</dd><dt>勤務日</dt><dd>土・日・祝 から週1日〜</dd><dt>時間</dt><dd>9:30〜17:00 の間で4時間〜</dd><dt>場所</dt><dd>○○駅 徒歩3分</dd><dt>待遇</dt><dd>まかない無料／交通費支給／制服貸与</dd></dl>
+           <div class="jp-voice"><b>💬 先輩スタッフの声</b>「最初の1か月は必ず先輩と一緒なので、未経験でも安心でした」（大学2年・林）</div>
+           <div class="jp-apply">応募する</div>
+         </div>
+       </div>
+       <div class="jp-out"><b>そのまま使える形でも用意しました：</b><span>求人サイト用（文字数に合わせて調整）</span><span>お店のインスタ投稿用</span><span>店内に貼るポスター（A4）</span><span class="hold">⏸ 公開は鈴木さんの確認待ち</span></div>
+     </div>`},
+  ]
+}];
+
+// 文章AIの「開く」：5日分の文章
+TEAMS[1].members[1].full = ()=>`<h5>5日分の投稿文</h5><div class="week">${[
+ ["月","日曜に30分だけ。平日がぐっとラクになる「作り置き3品」を紹介します🍲 どれも冷蔵で3日OK。忙しい週の味方です。","#作り置き #平日ごはん"],
+ ["火","帰ってから10分。鶏むねがしっとり仕上がる主菜です🐔 火を止めてから余熱で仕上げるのがコツ。","#時短レシピ #鶏むね"],
+ ["水","さつまいもの甘煮、煮くずれしたことありませんか？ 失敗しないコツは「水から弱火」。コメントで皆さんのコツも教えてください🍠","#失敗しないコツ #秋レシピ"],
+ ["木","来週の作り置き献立、買い物リストつきでまとめました📝 保存して、週末の買い物にどうぞ。","#作り置き献立 #買い物リスト"],
+ ["金","今週の教室では、作り置き3品を一緒に作りました。次回は12月のクリスマス料理です🎄 詳しくはプロフィールから。","#料理教室 #おうちごはん"]
+].map(d=>`<div class="day"><div class="d"><b>${d[0]}曜</b></div><div style="font-size:12px;line-height:1.65">${d[1]}</div><div style="font-size:11px;color:var(--accent)">${d[2]}</div></div>`).join("")}</div>`;
+
+// ====== 画面づくり ======
+function renderTabs(){
+  $("tabs").innerHTML = TEAMS.map((t,i)=>`<button class="tab${i===cur?" on":""}" data-i="${i}"><kbd>${i+1}</kbd>${t.tab}</button>`).join("");
+  $("tabs").querySelectorAll(".tab").forEach(b=>b.onclick=()=>{ cur=+b.dataset.i; reset(); });
+}
+function closeModal(){ $("modal").classList.remove("in"); }
+function openMember(i){
+  const T=TEAMS[cur], m=T.members[i];
+  const body = m.full ? m.full() : `<div class="big">${m.out()}</div>`;
+  $("sheet").style.setProperty("--c", m.c);
+  $("sheet").innerHTML = `<div class="sh-hd"><div class="av">${m.icon}</div><b>${m.name}</b><small>${m.task}</small><span class="x">Esc / 外側クリックで閉じる</span></div><div class="sh-bd" style="--c:${m.c}">${body}</div>`;
+  $("sheet").querySelectorAll(".chart i").forEach(b=>b.style.height=b.dataset.h+"%");
+  $("modal").classList.add("in");
+}
+function reset(){
+  timers.forEach(clearTimeout); timers=[]; state="idle"; closeModal();
+  const T = TEAMS[cur];
+  renderTabs();
+  $("meAv").textContent = T.meIcon;
+  $("meName").textContent = T.owner + "の分身AI";
+  $("thread").innerHTML = `<div class="idle"><h2>${T.owner}のAIチーム</h2>4人のAIが待機しています。<br><kbd>Enter</kbd> で分身AIに仕事を頼みます</div>`;
+  $("inp").className="inp ph"; $("inp").textContent="分身AIに頼みたいことを入力…";
+  $("go").className="go";
+  $("team").innerHTML = T.members.map((m,i)=>`
+    <div class="card" id="m${i}" style="--c:${m.c}">
+      <div class="ch"><div class="av">${m.icon}</div><div><b>${m.name}</b><small>${m.role}</small></div><span class="st">待機中</span><span class="opn">開く ↗</span></div>
+      <div class="bar"><i></i></div>
+      <div class="logs">${m.logs.map(l=>`<div class="lg">${l}</div>`).join("")}</div>
+      <div class="out"><div class="ph">まだ仕事を受けていません</div><div class="res">${m.out()}</div></div>
+    </div>`).join("") + `
+    <div class="back" id="back">
+      <h3>このチームを動かしているのは、3つの力です</h3>
+      <div class="lead">AIが勝手に動いているように見えて、うしろでは人がこの3つを決めています</div>
+      <div class="skills">
+        <div class="sk"><span>🧩</span><b>仕事を分けて任せる力</b><p>どの仕事を、どのAIに、どの順番で任せるかを決める</p></div>
+        <div class="sk"><span>🗣</span><b>AIに伝える力</b><p>材料・目的・できあがりの形を、AIに分かる言葉で渡す</p></div>
+        <div class="sk"><span>✅</span><b>仕上がりを確かめる力</b><p>外に出す前に、人が見て直す。最後に決めるのは自分</p></div>
+      </div>
+      <div class="ask">${T.owner}の仕事なら、どんなAIを並べたいですか？</div>
+    </div>`;
+  T.members.forEach((m,i)=>{ $("m"+i).onclick=()=>{ if($("m"+i).classList.contains("done")) openMember(i); }; });
+}
+
+function typePrompt(){
+  state="typed";
+  const T=TEAMS[cur], el=$("inp"); el.className="inp"; el.textContent="";
+  [...T.prompt].forEach((ch,i)=>at(i*35, ()=>el.textContent+=ch));
+  at(T.prompt.length*35, ()=>$("go").classList.add("ready"));
+}
+
+function scanView(sc, n, k){
+  const shown = [0,1,2].map(j=>sc.items[(k+j)%sc.items.length]);
+  return `<div class="scan"><div class="cnt"><b>${n}</b>件 ${sc.label}</div>${shown.map(s=>`<div class="src"><i>${s[0]}</i>${s[1]}</div>`).join("")}</div>`;
+}
+
+function run(){
+  if(state!=="typed") return;
+  state="running";
+  const T=TEAMS[cur], th=$("thread");
+  timers.forEach(clearTimeout); timers=[];
+  $("inp").className="inp ph"; $("inp").textContent="分身AIがチームに指示しています…"; $("go").className="go";
+  th.innerHTML = `<div class="bub u">${T.prompt}</div><div class="bub a">${T.intro}</div>
+    <div class="plan">${T.members.map((m,i)=>`<div class="pl" id="p${i}"><span class="dot" style="background:${m.c}"></span>${m.task}<span class="to">→ ${m.name}</span></div>`).join("")}</div>`;
+  const bubs=th.querySelectorAll(".bub");
+  at(100, ()=>bubs[0].classList.add("in"));
+  at(700, ()=>bubs[1].classList.add("in"));
+
+  // 仕事を配る → 同時に進む。前のAIの結果を使うAIほど、あとで仕上がる
+  const START=[1300,1550,1800,2050], FIN=T.fin||[5200,4300,6600,7600];
+  T.members.forEach((m,i)=>{
+    const card=$("m"+i), bar=card.querySelector(".bar i"), lgs=card.querySelectorAll(".lg"), st=card.querySelector(".st"), out=card.querySelector(".out"), ph=out.querySelector(".ph");
+    at(START[i], ()=>{ $("p"+i).classList.add("in"); card.classList.add("run"); st.textContent="作業中"; ph.textContent = m.scan ? "" : "つくっています…"; bar.style.width="10%"; });
+    lgs.forEach((l,k)=>{
+      const t = START[i] + 300 + (FIN[i]-START[i]-300)*k/lgs.length;
+      at(t, ()=>{ if(k>0) lgs[k-1].classList.add("gone"); l.classList.add("in"); bar.style.width = (10 + 90*(k+1)/lgs.length) + "%"; });
+    });
+    if(m.scan){
+      const steps = Math.floor((FIN[i]-START[i]-200)/110);
+      for(let k=0;k<steps;k++){
+        at(START[i]+100+k*110, ()=>{ ph.innerHTML = scanView(m.scan, Math.round(m.scan.total*Math.min(1,(k+1)/(steps*0.8))), k); });
+      }
+    }
+    at(FIN[i], ()=>{
+      card.classList.remove("run"); card.classList.add("done"); st.textContent="できました";
+      out.classList.add("in");
+      out.querySelectorAll(".chart i").forEach(b=>setTimeout(()=>b.style.height=b.dataset.h+"%",100));
+      const p=$("p"+i); p.classList.add("done"); p.querySelector(".to").textContent="✓ "+m.name;
+    });
+  });
+
+  at(8200, ()=>{
+    const d=document.createElement("div"); d.className="bub a"; d.textContent=T.done; th.appendChild(d);
+    requestAnimationFrame(()=>d.classList.add("in"));
+  });
+  at(8800, ()=>{
+    const r=document.createElement("div"); r.className="rv";
+    r.innerHTML=`<h4>⏸ ${T.owner}の確認待ち</h4><ul>${T.review.map(x=>`<li>${x[0]} ${x[1]}<span class="btn">${x[2]}</span></li>`).join("")}</ul>`;
+    th.appendChild(r); requestAnimationFrame(()=>r.classList.add("in"));
+  });
+  at(9200, ()=>{ state="done"; $("inp").textContent="カードをクリックで中身を見る ／ Enter で裏側へ"; });
+}
+
+function showBack(){ state="back"; $("back").classList.add("in"); }
+
+$("modal").onclick = e=>{ if(e.target.id==="modal") closeModal(); };
+document.addEventListener("keydown", e=>{
+  if($("modal").classList.contains("in")){ if(e.key==="Escape"||e.key==="Enter"){ e.preventDefault(); closeModal(); } return; }
+  if(e.key==="Enter"){
+    e.preventDefault();
+    if(state==="idle") typePrompt();
+    else if(state==="typed") run();
+    else if(state==="done") showBack();
+    else if(state==="back"){ $("back").classList.remove("in"); state="done"; }
+  } else if(["1","2","3"].includes(e.key)){ cur=+e.key-1; reset(); }
+  else if(e.key==="r"||e.key==="R"){ reset(); }
+});
+$("go").onclick=()=>{ if(state==="typed") run(); else if(state==="idle") typePrompt(); };
+reset();
+</script>
+</body>
+</html>

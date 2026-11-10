@@ -336,7 +336,7 @@ kbd{font-family:inherit;border:1px solid var(--line2);border-bottom-width:2px;bo
     <div class="logo"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" fill="#fff"/><circle cx="8" cy="8" r="6.5" stroke="#fff" stroke-width="1.3" opacity=".6"/></svg></div>
     <span class="name">My Agent</span>
     <span class="ws">あなたのワークスペース</span>
-    <span class="hint"><kbd>1</kbd>〜<kbd>3</kbd> スキル切替　<kbd>Enter</kbd> 実行　<kbd>R</kbd> リセット</span>
+    <span class="hint"><kbd>1</kbd><kbd>2</kbd> スキル切替　<kbd>3</kbd> AIチーム　<kbd>4</kbd> ワークフロー　<kbd>Enter</kbd> 実行　<kbd>R</kbd> リセット</span>
   </header>
 
   <div class="main">
@@ -345,10 +345,9 @@ kbd{font-family:inherit;border:1px solid var(--line2);border-bottom-width:2px;bo
       <button class="skill" data-skill="meeting"><span class="ic">🎙</span>会議まるごと</button>
       <div class="grp">副業</div>
       <button class="skill" data-skill="reel"><span class="ic">🎬</span>リール量産</button>
-      <button class="skill" data-skill="expense"><span class="ic">🧾</span>経費精算</button>
-      <div class="grp">経営（仮）</div>
-      <button class="skill soon" data-skill="soon"><span class="ic">・</span>準備中</button>
-      <button class="skill soon" data-skill="soon"><span class="ic">・</span>準備中</button>
+      <div class="grp">AIチーム</div>
+      <a class="skill" href="ai-team.html" style="text-decoration:none"><span class="ic">🤖</span>AI分身チーム</a>
+      <a class="skill" href="workflow.html" style="text-decoration:none"><span class="ic">🔀</span>自動ワークフロー</a>
     </nav>
 
     <section class="chat">
@@ -716,7 +715,7 @@ SC.expense = {
 function scaleSlides(root){
   root.querySelectorAll(".slwrap").forEach(w=>{ const s=w.querySelector(".slide"); if(s) s.style.transform=`scale(${w.clientWidth/960})`; });
 }
-const SKILLS=["meeting","reel","expense"];
+const SKILLS=["meeting","reel"];
 function emptyChat(){
   // 左メニューが拡張機能にクリックを奪われる環境でも選べるよう、中央にも全スキルを並べる
   thread.innerHTML = `<div class="empty"><h2>何をお手伝いしましょう？</h2>
@@ -851,6 +850,7 @@ document.addEventListener("keydown", e=>{
   const typing = ["INPUT","SELECT"].includes(document.activeElement.tagName);
   if(e.key==="Enter" && !e.shiftKey && !typing){ e.preventDefault(); if(state==="idle"||state==="ready") run(); }
   if((e.key==="r"||e.key==="R") && !typing && (document.activeElement!==inp || state==="done")){ e.preventDefault(); reset(); }
+  if((e.key==="3"||e.key==="4") && !typing && (document.activeElement!==inp || state!=="idle")){ e.preventDefault(); location.href = e.key==="3" ? "ai-team.html" : "workflow.html"; return; }
   const n=SKILLS[+e.key-1];
   if(n && !typing && (document.activeElement!==inp || state!=="idle")){ e.preventDefault(); reset(n); prefill(); }
 });

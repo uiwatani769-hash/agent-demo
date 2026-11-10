@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>自動ワークフロー デモ</title>
+<style>
+:root{
+  --bg:#f6f5f2; --panel:#fff; --line:#e7e5df; --line2:#d9d6ce;
+  --text:#1f1f1d; --muted:#6c6b66; --faint:#a3a19a;
+  --accent:#4f46e5; --accent-bg:#eef0ff;
+  --ok:#15803d; --ok-bg:#e7f6ec;
+  --todo:#b45309; --todo-bg:#fdf1de;
+  --c0:#dc2626; --c1:#0f9488; --c2:#7c3aed;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+kbd{font-family:inherit;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;color:var(--muted);background:#fff}
+
+.app{display:grid;grid-template-rows:52px 1fr;height:100vh}
+.top{display:flex;align-items:center;gap:10px;padding:0 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{width:28px;height:28px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;font-size:14px}
+.top .name{font-weight:600;white-space:nowrap}
+.navl{white-space:nowrap;font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line2);border-radius:8px;padding:3px 10px}
+.navl:hover{color:var(--accent);border-color:var(--accent)}
+.tabs{display:flex;gap:4px;margin-left:6px}
+.tab{white-space:nowrap;padding:5px 10px;border-radius:8px;color:var(--muted);font-size:13px}
+.tab:hover{background:var(--bg)}
+.tab.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.tab kbd{margin-right:6px}
+.top .hint{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
+
+.main{display:grid;grid-template-columns:1fr clamp(300px,26vw,360px);min-height:0}
+
+/* キャンバス */
+.cv{position:relative;min-height:0;overflow:hidden;background:
+  radial-gradient(circle, #dcd9d1 1px, transparent 1px) 0 0/22px 22px, var(--bg)}
+.cv-hd{position:absolute;left:20px;top:14px;right:20px;display:flex;align-items:center;gap:12px;z-index:3}
+.cv-hd h2{font-size:16px}
+.cv-hd small{color:var(--muted);font-size:12px}
+.sw{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 6px}
+.sw i{width:34px;height:20px;border-radius:999px;background:var(--line2);position:relative;transition:.3s}
+.sw i::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.3s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on{color:var(--ok);border-color:#bfe3c9}
+.sw.on i{background:#22c55e}
+.sw.on i::after{left:16px}
+.stage{position:absolute;left:0;top:0;width:1000px;height:560px;transform-origin:0 0}
+.stage svg.edges{position:absolute;inset:0;width:1000px;height:560px;overflow:visible}
+.edge{fill:none;stroke:#cfccc3;stroke-width:2.5}
+.edge.hot{stroke:var(--ec,#6366f1);stroke-width:3}
+.elab{position:absolute;font-size:11.5px;font-weight:700;padding:1px 9px;border-radius:999px;background:#fff;border:1.5px solid var(--ec);color:var(--ec);transform:translate(-50%,-50%);white-space:nowrap}
+.node{position:absolute;background:#fff;border:1.5px solid var(--line2);border-radius:14px;padding:10px 10px;display:flex;gap:8px;align-items:center;box-shadow:0 2px 6px rgba(0,0,0,.04);transition:border-color .25s, box-shadow .25s, transform .25s}
+.node .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:var(--bg);flex:none}
+.node b{display:block;font-size:13px;line-height:1.35;white-space:nowrap}
+.node small{display:block;font-size:11px;color:var(--muted);line-height:1.35}
+.node .cnt{position:absolute;top:-10px;right:-8px;min-width:24px;height:22px;border-radius:999px;background:var(--text);color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center;padding:0 7px;opacity:0;transform:scale(.6);transition:.25s}
+.node .cnt.on{opacity:1;transform:none}
+.node.flash{border-color:var(--nc,#6366f1);box-shadow:0 0 0 5px color-mix(in srgb,var(--nc,#6366f1) 16%,transparent);transform:translateY(-1px)}
+.node.trig .ic{background:#fff7ed}
+.node.ai .ic{background:var(--accent-bg)}
+.node.br{justify-content:center;border-style:dashed}
+.node.br .ic{background:#f5f3ff}
+.node.act0{--nc:var(--c0)} .node.act0 .ic{background:#fef2f2}
+.node.act1{--nc:var(--c1)} .node.act1 .ic{background:#ecfdf5}
+.node.act2{--nc:var(--c2)} .node.act2 .ic{background:#f5f3ff}
+.node.rec .ic{background:#eff6ff}
+.peek{position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);width:230px;background:#1f1f1d;color:#fff;font-size:11.5px;border-radius:8px;padding:6px 10px;line-height:1.5;opacity:0;transition:.2s;pointer-events:none;z-index:5}
+.peek.on{opacity:1}
+.peek em{font-style:normal;color:#a5b4fc}
+.cv.done .node{cursor:pointer}
+.cv.done .node:hover{border-color:var(--accent)}
+.opn{display:none;position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);font-size:10.5px;background:#fff;border:1px solid var(--line2);border-radius:999px;padding:0 8px;color:var(--muted);white-space:nowrap}
+.cv.done .opn{display:block}
+
+/* 右：ログ */
+.side{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.sd-hd{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.sd-hd b{font-size:14px}
+.sd-hd small{display:block;color:var(--muted);font-size:11.5px}
+.ctr{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.ctr div{background:var(--bg);border-radius:8px;padding:4px 6px;font-size:10px;color:var(--muted);line-height:1.3;text-align:center}
+.ctr b{display:block;font-size:18px;color:var(--text);font-variant-numeric:tabular-nums}
+.ctr .k0 b{color:var(--c0)} .ctr .k1 b{color:var(--c1)} .ctr .k2 b{color:var(--c2)}
+.log{flex:1;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.lempty{margin:auto;color:var(--faint);font-size:12.5px;text-align:center}
+.row{border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:12px;opacity:0;transform:translateY(-6px);transition:.35s;background:#fff}
+.row.in{opacity:1;transform:none}
+.row .t{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:10.5px}
+.row .t .tg{font-weight:700;border-radius:999px;padding:0 7px;color:#fff}
+.row .q{margin:2px 0;line-height:1.45}
+.row .r{font-size:11px;color:var(--muted)}
+.row .r::before{content:"→ "}
+.row .hold{color:var(--todo)}
+.sd-ft{border-top:1px solid var(--line);padding:10px 14px;font-size:12px;color:var(--muted)}
+.sd-ft.ok{background:var(--ok-bg);color:var(--ok);font-weight:600}
+
+/* できあがったもの（トレイ） */
+.tray{flex:1;overflow:auto;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start}
+.tray .lempty{grid-column:1/-1;margin:60px auto 0}
+.oc{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.07);font-size:10px;line-height:1.45;height:124px;display:flex;flex-direction:column;text-align:left}
+.oc .oh{display:flex;align-items:center;gap:5px;padding:4px 7px;border-bottom:1px solid var(--line);font-size:9.5px;color:var(--muted);white-space:nowrap}
+.oc .oh .tg{font-weight:700;border-radius:999px;padding:0 6px;color:#fff;font-size:9px}
+.oc .oh .ty{margin-left:auto;font-weight:600;color:var(--text)}
+.oc .ob{padding:6px 8px;flex:1;overflow:hidden;position:relative}
+.oc.ph{visibility:hidden}
+.oc.land{animation:land .35s ease}
+@keyframes land{0%{transform:scale(.9)}60%{transform:scale(1.04)}100%{transform:none}}
+.fly{position:fixed;z-index:40;transition:left .6s cubic-bezier(.5,0,.2,1),top .6s cubic-bezier(.5,0,.2,1),transform .4s cubic-bezier(.3,1.4,.5,1),opacity .25s;transform-origin:center;pointer-events:none}
+.fly .oc{box-shadow:0 10px 30px rgba(0,0,0,.22)}
+/* 縮小版の成果物 */
+.m-mail .to{color:var(--muted);font-size:9px}
+.m-mail .s{font-weight:700;font-size:10.5px;margin:1px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-mail .b{color:#3d3c38;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.m-mail .st,.m-dm .st,.m-tk .st,.m-doc .st{position:absolute;right:6px;bottom:4px;font-size:8.5px;font-weight:700;border-radius:999px;padding:0 6px;background:var(--todo-bg);color:var(--todo)}
+.st.sent{background:var(--ok-bg)!important;color:var(--ok)!important}
+.m-doc{border:1px solid var(--line);border-radius:4px;padding:5px 7px 14px;height:100%;background:#fff}
+.m-doc h6{text-align:center;font-size:10.5px;letter-spacing:.25em;margin-bottom:2px}
+.m-doc .w{font-size:9px;font-weight:700;border-bottom:1px solid var(--text);display:inline-block;margin-bottom:3px}
+.m-doc .ln{display:flex;justify-content:space-between;font-size:8.5px;color:var(--muted);border-bottom:1px solid var(--line);padding:1px 0}
+.m-doc .tt{display:flex;justify-content:space-between;font-weight:700;font-size:10.5px;margin-top:3px}
+.m-chat{display:flex;gap:5px}
+.m-chat .av{width:18px;height:18px;border-radius:5px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:10px;flex:none}
+.m-chat .bb{border:1px solid var(--line);border-left:3px solid var(--c0);border-radius:6px;padding:4px 6px;flex:1;background:#fffafa}
+.m-chat .h{color:var(--c0);font-weight:700}
+.m-chat .bt{display:flex;gap:4px;margin-top:3px}
+.m-chat .bt span{font-size:8.5px;border:1px solid var(--line2);border-radius:4px;padding:0 5px;background:#fff}
+.m-dm .u{font-weight:700;font-size:9.5px;display:flex;align-items:center;gap:4px}
+.m-dm .u i{width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#db2777);display:block}
+.m-dm .q{color:var(--muted);font-size:9px;margin:2px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-dm .a{background:var(--bg);border-radius:8px 8px 8px 2px;padding:3px 6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.m-dm .ch{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.m-dm .ch span{font-size:8.5px;border-radius:4px;padding:0 5px;background:#fdf2f8;color:#be185d;font-weight:600}
+.m-tk{border:1.5px dashed var(--line2);border-radius:6px;padding:4px 7px;height:100%;background:#fffdf7}
+.m-tk .ic{font-size:16px;float:right}
+.m-tk .h{font-weight:700;font-size:10.5px}
+.m-tk ul{margin-top:2px}
+.m-tk li{list-style:none;font-size:9px;color:#3d3c38}
+.m-tk li::before{content:"・"}
+.m-seat .g{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin:3px 0 4px}
+.m-seat .g i{display:block;height:12px;border-radius:3px;background:var(--line)}
+.m-seat .g i.on{background:var(--c2)}
+.m-seat .h{font-weight:700;font-size:10.5px}
+.m-seat .x{font-size:9px;color:#3d3c38}
+.m-seat .x b{color:#b91c1c}
+/* 最後の一覧 */
+.fin{position:absolute;inset:0;z-index:8;background:rgba(246,245,242,.97);display:flex;flex-direction:column;padding:22px 28px 34px;opacity:0;pointer-events:none;transition:.45s}
+.fin.in{opacity:1;pointer-events:auto}
+.fin-hd{display:flex;align-items:flex-end;gap:8px 14px;margin-bottom:12px;flex-wrap:wrap}
+.fin-hd h3{white-space:nowrap}
+.fin-hd h3{font-size:21px}
+.fin-hd small{color:var(--muted);font-size:12.5px}
+.fin-hd .chips{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.fin-hd .chips span{font-size:12px;font-weight:700;border-radius:999px;padding:3px 11px;color:#fff;white-space:nowrap}
+.fin-hd .cls{white-space:nowrap;font-size:12px;color:var(--muted);border:1px solid var(--line2);border-radius:8px;padding:3px 10px;background:#fff}
+.fin-g{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;gap:14px;min-height:0}
+.fin-g .cell{min-height:0;opacity:0;transform:translateY(10px) scale(.96);transition:.4s;cursor:pointer}
+.fin.in .fin-g .cell{opacity:1;transform:none}
+.fin-g .cell{position:relative}
+.fin-g .cell .oc{position:absolute;left:0;top:0;width:calc(100% / 1.3);height:calc(100% / 1.3);transform:scale(1.3);transform-origin:0 0}
+.fin-g .cell:hover .oc{border-color:var(--accent)}
+.fin-ft{white-space:nowrap;overflow:hidden;margin-top:12px;font-size:12.5px;color:var(--muted);display:flex;gap:10px;align-items:center}
+.fin-ft b{color:var(--todo)}
+
+/* 夜に回るフロー */
+.clock{display:none;align-items:center;gap:8px;font-size:12px;color:var(--muted);background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 12px}
+.clock b{font-size:18px;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.cv.hasclock .clock{display:flex}
+.cv.hasclock .sw{margin-left:8px}
+.cv{transition:background-color .9s}
+.cv.night{background:radial-gradient(circle, #2b3152 1px, transparent 1px) 0 0/22px 22px, #121733}
+.cv.night .cv-hd h2{color:#eef0ff}
+.cv.night .cv-hd small{color:#a5b0d6}
+.cv.night .edge{stroke:#3a4168}
+.cv.night .clock{background:#1d2347;border-color:#353d6b;color:#a5b0d6}
+.cv.night .clock b{color:#fde68a}
+.cv.night .sw{background:#1d2347;border-color:#353d6b}
+.cv.night .elab{background:#121733}
+.cv.morning .clock b{color:#ea580c}
+.nightnote{position:absolute;left:20px;bottom:16px;z-index:3;font-size:12px;color:#c7d2fe;background:rgba(29,35,71,.9);border:1px solid #353d6b;border-radius:10px;padding:6px 12px;display:none}
+.cv.night .nightnote{display:block}
+/* スカウト・見送りの縮小版 */
+.m-sc .u{display:flex;align-items:center;gap:5px;font-weight:700;font-size:10px}
+.m-sc .u i{width:16px;height:16px;border-radius:50%;background:#e0e7ff;display:grid;place-items:center;font-style:normal;font-size:8px;color:#4338ca}
+.m-sc .mt{margin-left:auto;font-size:9px;font-weight:700;color:var(--c0);background:#fef2f2;border-radius:999px;padding:0 6px}
+.m-sc .p{font-size:8.5px;color:var(--muted);margin:1px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-sc .msg{font-size:9px;background:var(--bg);border-radius:6px;padding:2px 5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.m-sc .rp{margin-top:3px;font-size:9px;border-left:2px solid var(--ok);padding-left:5px;color:#14532d}
+.m-sc .mtg{margin-top:2px;font-size:9px;font-weight:700;color:#fff;background:var(--ok);border-radius:4px;padding:0 5px;display:inline-block}
+.m-sc .mtg.q{background:var(--todo)}
+.m-sk .u{font-weight:700;font-size:10px}
+.m-sk .p{font-size:8.5px;color:var(--muted);margin-bottom:4px}
+.m-sk .why{font-size:9.5px;background:#f5f3ff;border-radius:6px;padding:3px 6px;color:#4c1d95}
+.m-sk .nx{font-size:9px;color:var(--muted);margin-top:4px}
+.cal{display:grid;grid-template-columns:44px repeat(5,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:11.5px}
+.cal div{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:4px 6px;min-height:30px}
+.cal .hd{background:var(--bg);font-weight:600;color:var(--muted);text-align:center}
+.cal .tm{color:var(--muted);font-size:10.5px;text-align:right}
+.cal .ev{background:var(--ok-bg);color:var(--ok);font-weight:700;border-left:3px solid var(--ok)}
+.cal .busy{background:#f3f4f6;color:var(--faint)}
+
+/* 開いたとき */
+.modal{position:fixed;inset:0;background:rgba(20,18,40,.45);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.3s;z-index:20}
+.modal.in{opacity:1;pointer-events:auto}
+.sheet{width:min(900px,92vw);max-height:88vh;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);display:flex;flex-direction:column;transform:translateY(12px);transition:.3s;overflow:hidden}
+.modal.in .sheet{transform:none}
+.sh-hd{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--line)}
+.sh-hd .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:18px;background:var(--bg)}
+.sh-hd b{font-size:15px}
+.sh-hd small{color:var(--muted);font-size:12px;margin-left:4px}
+.sh-hd .x{margin-left:auto;color:var(--faint);font-size:12px}
+.sh-bd{padding:18px 24px 24px;overflow:auto}
+.sh-bd h5{font-size:13px;color:var(--accent);margin:14px 0 8px}
+.sh-bd h5:first-child{margin-top:0}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl th,.tbl td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.tbl th{font-size:11px;color:var(--muted);font-weight:600}
+.pill{font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;color:#fff;white-space:nowrap}
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.rule{border:1.5px solid var(--rc);border-radius:12px;padding:12px}
+.rule b{color:var(--rc);font-size:14px}
+.rule p{font-size:12.5px;margin-top:4px;line-height:1.7}
+.rule .ex{font-size:11.5px;color:var(--muted);margin-top:6px}
+.drafts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dr{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.dr .q{background:var(--bg);padding:8px 12px;font-size:12px;color:var(--muted)}
+.dr .q b{color:var(--text)}
+.dr .a{padding:10px 12px;font-size:12.5px;line-height:1.75}
+.dr .f{border-top:1px solid var(--line);padding:6px 12px;font-size:11px;display:flex;justify-content:space-between;color:var(--muted)}
+.dr .f span:last-child{color:var(--todo);font-weight:600}
+.chat{background:#f8f7fc;border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.msg{display:flex;gap:10px}
+.msg .av{width:32px;height:32px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:16px;flex:none}
+.msg .bd{font-size:12.5px;line-height:1.7;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;flex:1}
+.msg .bd b.h{display:block;color:var(--c0)}
+.msg .bd .btns{display:flex;gap:6px;margin-top:6px}
+.msg .bd .btns span{font-size:11px;border:1px solid var(--line2);border-radius:6px;padding:1px 10px}
+.doc{border:1px solid var(--line);border-radius:12px;padding:18px 22px;font-size:12.5px}
+.doc h4{text-align:center;font-size:17px;letter-spacing:.2em;margin-bottom:10px}
+.doc .meta{display:flex;justify-content:space-between;font-size:12px;margin-bottom:10px}
+.doc .tot{display:flex;justify-content:flex-end;gap:14px;font-size:15px;font-weight:700;margin-top:8px}
+.doc .num{text-align:right;font-variant-numeric:tabular-nums}
+.sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.sum div{background:var(--bg);border-radius:10px;padding:8px 12px;font-size:11.5px;color:var(--muted)}
+.sum b{display:block;font-size:22px;color:var(--text)}
+.foot{font-size:11.5px;color:var(--faint);margin-top:8px}
+
+/* 裏側 */
+.back{position:absolute;inset:0;background:rgba(30,27,75,.95);color:#fff;display:flex;flex-direction:column;justify-content:center;padding:40px 56px;opacity:0;pointer-events:none;transition:.5s;z-index:10}
+.back.in{opacity:1;pointer-events:auto}
+.back h3{font-size:24px;margin-bottom:6px}
+.back .lead{color:#c7d2fe;margin-bottom:26px;font-size:14px}
+.skills{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.sk{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:18px;opacity:0;transform:translateY(10px);transition:.5s}
+.back.in .sk{opacity:1;transform:none}
+.back.in .sk:nth-child(2){transition-delay:.25s}
+.back.in .sk:nth-child(3){transition-delay:.5s}
+.sk span{font-size:28px}
+.sk b{display:block;font-size:16px;margin:6px 0 4px}
+.sk p{font-size:13px;color:#dbe0ff;line-height:1.7}
+.ask{margin-top:28px;font-size:18px;font-weight:600;opacity:0;transition:.5s .9s}
+.back.in .ask{opacity:1}
+
+.disc{position:fixed;left:14px;bottom:8px;font-size:11px;color:var(--faint);background:rgba(246,245,242,.9);padding:1px 6px;border-radius:4px;z-index:30}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">✦</div>
+    <div class="name">My Workflow</div>
+    <a class="navl" href="index.html">◀ 単体のデモ</a>
+    <a class="navl" href="ai-team.html">AI分身チーム</a>
+    <div class="tabs" id="tabs"></div>
+    <div class="hint"><kbd>Enter</kbd> 実行→裏側　<kbd>1</kbd>〜<kbd id="kmax">3</kbd> 切替　<kbd>R</kbd> 最初から</div>
+  </div>
+  <div class="main">
+    <div class="cv" id="cv">
+      <div class="cv-hd"><div><h2 id="fTitle"></h2><small id="fSub"></small></div><div class="clock" id="clock" style="margin-left:auto">🌙 <b id="clk">23:00</b></div><div class="sw" id="sw"><i></i><span id="swTxt">自動実行 OFF</span></div></div>
+      <div class="nightnote">💤 あなたが寝ているあいだも動いています（送るスカウトは寝る前にまとめてOK済み）</div>
+      <div class="stage" id="stage"></div>
+      <div class="fin" id="fin"></div>
+      <div class="back" id="back"></div>
+    </div>
+    <div class="side">
+      <div class="sd-hd"><b>できあがったもの</b><small id="sdSub"></small>
+        <div class="ctr" id="ctr"></div></div>
+      <div class="tray" id="log"></div>
+      <div class="sd-ft" id="sdFt">まだ動いていません</div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="disc">※ 画面・データはデモ用の架空のものです</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let timers=[], rafs=[], state="idle", cur=0, runId=0;
+const at=(ms,fn)=>timers.push(setTimeout(fn,ms));
+const COL=["var(--c0)","var(--c1)","var(--c2)"];
+const HEX=["#dc2626","#0f9488","#7c3aed"];
+
+// ====== 部品の位置（1000×560の上に並べる） ======
+const POS={
+  trig:{x:6,y:250,w:194,h:74}, ai:{x:226,y:250,w:194,h:74}, br:{x:444,y:256,w:118,h:62},
+  a0:{x:640,y:70,w:184,h:74}, a1:{x:640,y:250,w:184,h:74}, a2:{x:640,y:430,w:184,h:74},
+  rec:{x:848,y:250,w:148,h:74}
+};
+const EDGES=[["trig","ai"],["ai","br"],["br","a0"],["br","a1"],["br","a2"],["a0","rec"],["a1","rec"],["a2","rec"]];
+
+// ====== 3つの流れ（すべて架空） ======
+const FLOWS=[
+{
+  tab:"会社の仕事", title:"問い合わせ対応フロー", sub:"ミドリ商事 ・ 問い合わせが届くたびに自動で動く", who:"佐藤さん",
+  logSub:"問い合わせフォーム → 仕分け → 対応 → 記録",
+  nodes:{
+    trig:["📥","問い合わせフォーム","新しく届いたら動き出す"],
+    ai:["🤖","AIが読んで仕分け","内容・急ぎかどうかを判断"],
+    br:["🔀","3つに分ける",""],
+    a0:["🔔","担当者に通知","急ぎはチャットで即連絡"],
+    a1:["✉️","返信の下書き","よくある質問はAIが下書き"],
+    a2:["📄","見積書の下書き","数量と単価から自動作成"],
+    rec:["📊","対応表に記録","全件を一覧に"]
+  },
+  cats:["急ぎ","よくある質問","見積もり"],
+  ctrNames:["急ぎ","下書き","見積もり"],
+  items:[
+    ["注文した商品がまだ届きません。明日の朝までに必要です",0,"営業1課 山田さんに通知"],
+    ["請求書の送り先を、本社から支店に変えたいです",1,"手続きの案内を下書き"],
+    ["コピー用紙を毎月50箱、見積もりをお願いします",2,"見積書を下書き（月額）"],
+    ["届いたプリンターが動きません。至急見てほしい",0,"サポート 中村さんに通知"],
+    ["支払いにクレジットカードは使えますか",1,"支払い方法の案内を下書き"],
+    ["新しい事務所用に、机と椅子を20セット検討中です",2,"見積書を下書き（20セット）"],
+    ["領収書を再発行してほしいです",1,"再発行の手順を下書き"],
+    ["配送の時間指定はできますか",1,"時間指定の案内を下書き"]
+  ],
+  done:"8件すべて対応しました。急ぎ2件は担当者に連絡済み。下書き6件は佐藤さんの確認待ちです。",
+  skills:[["🧭","流れを設計する力","どこから始まり、どう分けて、どこで終わるかを決める"],["📏","判断の基準を渡す力","何を「急ぎ」とするか、AIに分かる言葉で決めておく"],["✅","人が見る場所を決める力","お客さまに出す前は、必ず人が確認する"]],
+  ask:"佐藤さんの毎日の仕事で、自動で回したいのはどれですか？",
+  detail:{
+    trig:()=>`<h5>届いた問い合わせ（8件）</h5><table class="tbl"><tr><th>受付</th><th>差出人</th><th>内容</th></tr>
+      ${FLOWS[0].items.map((it,i)=>`<tr><td>08:${String(2+i*7).padStart(2,"0")}</td><td>${["青山工業 総務部","北町クリニック","みなと設計","さくら保育園","東光運輸","ひまわり税理士事務所","森川製作所","いずみ不動産"][i]}</td><td>${it[0]}</td></tr>`).join("")}</table>
+      <div class="foot">フォーム・メールのどちらから届いても、同じ流れに入ります</div>`,
+    ai:()=>`<h5>AIが読んで、こう判断しました</h5><table class="tbl"><tr><th>内容</th><th>判断</th><th>理由</th></tr>
+      ${FLOWS[0].items.map(it=>`<tr><td>${it[0]}</td><td><span class="pill" style="background:${HEX[it[1]]}">${FLOWS[0].cats[it[1]]}</span></td><td>${it[1]===0?"「明日まで」「至急」など期限が迫っている":it[1]===1?"よくある質問の一覧に答えがある":"数量が書かれていて、価格を知りたい"}</td></tr>`).join("")}</table>`,
+    br:()=>`<h5>分け方のルール（人が決めたもの）</h5><div class="rules">
+      <div class="rule" style="--rc:${HEX[0]}"><b>急ぎ</b><p>期限が今日・明日／「動かない」「届かない」などのトラブル</p><div class="ex">→ 担当者にすぐ通知。AIは返事をしない</div></div>
+      <div class="rule" style="--rc:${HEX[1]}"><b>よくある質問</b><p>よくある質問の一覧（32項目）に答えがあるもの</p><div class="ex">→ AIが返信を下書き。人が見てから送る</div></div>
+      <div class="rule" style="--rc:${HEX[2]}"><b>見積もり</b><p>商品名と数量が書かれていて、価格を知りたいもの</p><div class="ex">→ 価格表から見積書を下書き</div></div></div>`,
+    a0:()=>`<h5>担当者に届いた通知</h5><div class="chat">
+      <div class="msg"><div class="av">🤖</div><div class="bd"><b class="h">🔴 急ぎの問い合わせ（配送）</b>青山工業 総務部さまから「注文した商品がまだ届かない。明日の朝までに必要」と届きました。<br>注文番号：A-20431（11/6 注文・コピー用紙10箱）／配送状況：倉庫を出荷済み・配達は明日午後の予定<br>→ 午前中に届けられるか、配送会社への確認をお願いします。<div class="btns"><span>対応します</span><span>ほかの人に回す</span></div></div></div>
+      <div class="msg"><div class="av">🤖</div><div class="bd"><b class="h">🔴 急ぎの問い合わせ（故障）</b>さくら保育園さまから「届いたプリンターが動かない」と届きました。<br>購入日：11/2　機種：事務用レーザー L-300　保証期間内です<br>→ 電話での確認か、交換品の手配をお願いします。<div class="btns"><span>対応します</span><span>ほかの人に回す</span></div></div></div></div>`,
+    a1:()=>`<h5>返信の下書き（6件のうち2件）</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>北町クリニック さま</b>　請求書の送り先を変えたい</div><div class="a">北町クリニック ご担当者さま<br>いつもご利用いただきありがとうございます。ミドリ商事の佐藤です。<br>請求書の送り先の変更は、マイページの「お客さま情報」から、いつでも手続きいただけます。次回の請求書から新しい送り先にお送りします。<br>ご不明な点がございましたら、お気軽にご連絡ください。</div><div class="f"><span>根拠：よくある質問 No.12</span><span>⏸ 確認待ち</span></div></div>
+      <div class="dr"><div class="q"><b>東光運輸 さま</b>　カードで支払えるか</div><div class="a">東光運輸 ご担当者さま<br>お問い合わせありがとうございます。ミドリ商事の佐藤です。<br>お支払いは、クレジットカード・銀行振込・口座振替からお選びいただけます。カードの場合は、ご注文画面で「カード払い」をお選びください。<br>今後ともよろしくお願いいたします。</div><div class="f"><span>根拠：よくある質問 No.4</span><span>⏸ 確認待ち</span></div></div></div>`,
+    a2:()=>`<h5>見積書の下書き（2件のうち1件）</h5><div class="doc"><h4>御見積書</h4>
+      <div class="meta"><div><b>みなと設計 御中</b><br>件名：コピー用紙 定期購入（毎月）</div><div style="text-align:right">ミドリ商事株式会社<br>担当：佐藤　見積日：11月10日</div></div>
+      <table class="tbl"><tr><th>品名</th><th class="num">数量</th><th class="num">単価</th><th class="num">金額</th></tr>
+      <tr><td>コピー用紙 A4（5,000枚/箱）</td><td class="num">50箱</td><td class="num">¥2,980</td><td class="num">¥149,000</td></tr>
+      <tr><td>定期購入のお値引き（5%）</td><td class="num"></td><td class="num"></td><td class="num">−¥7,450</td></tr>
+      <tr><td>配送料（定期便は無料）</td><td class="num"></td><td class="num"></td><td class="num">¥0</td></tr></table>
+      <div class="tot"><span>月額合計（税込）</span><span>¥155,705</span></div></div>
+      <div class="foot">価格表と、定期購入の値引きルールから作りました。⏸ 送る前に佐藤さんの確認待ち</div>`,
+    rec:()=>`<div class="sum"><div><b>8件</b>今朝の問い合わせ</div><div><b style="color:${HEX[0]}">2件</b>急ぎ（通知済み）</div><div><b style="color:${HEX[1]}">4件</b>よくある質問</div><div><b style="color:${HEX[2]}">2件</b>見積もり</div></div>
+      <h5>対応表</h5><table class="tbl"><tr><th>受付</th><th>内容</th><th>分類</th><th>対応</th><th>状態</th></tr>
+      ${FLOWS[0].items.map((it,i)=>`<tr><td>08:${String(2+i*7).padStart(2,"0")}</td><td>${it[0]}</td><td><span class="pill" style="background:${HEX[it[1]]}">${FLOWS[0].cats[it[1]]}</span></td><td>${it[2]}</td><td>${it[1]===0?"通知済み":"確認待ち"}</td></tr>`).join("")}</table>
+      <div class="foot">週末には、この表から「多かった問い合わせ」のまとめも自動で作ります</div>`
+  }
+},
+{
+  tab:"SNS・発信", title:"コメント・DM対応フロー", sub:"おうちごはん教室 ・ コメントやDMが届くたびに自動で動く", who:"田中さん",
+  logSub:"コメント・DM → 仕分け → 対応 → 記録",
+  nodes:{
+    trig:["💬","コメント・DM","新しく届いたら動き出す"],
+    ai:["🤖","AIが読んで仕分け","質問・申し込み・感想"],
+    br:["🔀","3つに分ける",""],
+    a0:["📅","教室の案内を準備","空き日程と申し込み先"],
+    a1:["✉️","返信の下書き","レシピの質問に答える"],
+    a2:["💛","お礼の返信","感想にはお礼を返す"],
+    rec:["📊","反応を記録","来週の企画に使う"]
+  },
+  cats:["申し込み","質問","感想"],
+  ctrNames:["申し込み","質問","感想"],
+  items:[
+    ["作り置き、冷凍もできますか？",1,"冷凍のコツを下書き"],
+    ["12月の教室に参加したいです！",0,"12月の空き日程を案内"],
+    ["昨日のレシピ作りました。家族に好評でした",2,"お礼の返信"],
+    ["土曜クラスはまだ空いていますか",0,"土曜の空き状況を案内"],
+    ["甘煮が煮くずれしちゃいます…",1,"煮くずれしないコツを下書き"],
+    ["写真がいつもきれいで見ていて楽しいです",2,"お礼の返信"],
+    ["子どもと一緒に参加できますか",0,"親子クラスを案内"],
+    ["作り置きは何日くらいもちますか",1,"保存の目安を下書き"]
+  ],
+  done:"8件すべて対応しました。申し込み希望3件の案内と、質問への返信は田中さんの確認待ちです。",
+  skills:[["🧭","流れを設計する力","届いたものを、どう分けて、どこにつなぐかを決める"],["📏","判断の基準を渡す力","何を「申し込み希望」とみなすか、言葉で決めておく"],["✅","人が見る場所を決める力","お金や日程が関わる返事は、人が確認してから送る"]],
+  ask:"田中さんの発信で、自動で回したいのはどれですか？",
+  detail:{
+    trig:()=>`<h5>届いたコメント・DM（8件）</h5><table class="tbl"><tr><th>受付</th><th>種類</th><th>内容</th></tr>
+      ${FLOWS[1].items.map((it,i)=>`<tr><td>20:${String(5+i*6).padStart(2,"0")}</td><td>${i%3===1?"DM":"コメント"}</td><td>${it[0]}</td></tr>`).join("")}</table>`,
+    ai:()=>`<h5>AIが読んで、こう判断しました</h5><table class="tbl"><tr><th>内容</th><th>判断</th><th>理由</th></tr>
+      ${FLOWS[1].items.map(it=>`<tr><td>${it[0]}</td><td><span class="pill" style="background:${HEX[it[1]]}">${FLOWS[1].cats[it[1]]}</span></td><td>${it[1]===0?"「参加したい」「空いていますか」など教室への関心":it[1]===1?"レシピや作り方への質問":"感想・応援の言葉"}</td></tr>`).join("")}</table>`,
+    br:()=>`<h5>分け方のルール（人が決めたもの）</h5><div class="rules">
+      <div class="rule" style="--rc:${HEX[0]}"><b>申し込み</b><p>教室に参加したい・空きを知りたい</p><div class="ex">→ 空き日程と申し込み先をDMで案内（送る前に確認）</div></div>
+      <div class="rule" style="--rc:${HEX[1]}"><b>質問</b><p>レシピ・保存・作り方の質問</p><div class="ex">→ 過去の投稿とレシピから返信を下書き</div></div>
+      <div class="rule" style="--rc:${HEX[2]}"><b>感想</b><p>感想・応援のコメント</p><div class="ex">→ その人の言葉に合わせたお礼を返す</div></div></div>`,
+    a0:()=>`<h5>申し込み希望への案内（3件のうち2件）</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>@mika_kitchen さん</b>　12月の教室に参加したい</div><div class="a">メッセージありがとうございます！ 12月の教室は、次の日程に空きがあります🎄<br>・12/6（土）10:00〜　残り2席<br>・12/13（土）10:00〜　残り4席<br>・12/17（水）19:00〜　残り3席<br>プロフィールのリンクから、ご希望の日を選んでお申し込みください。お会いできるのを楽しみにしています。</div><div class="f"><span>予約表の空きから作成</span><span>⏸ 確認待ち</span></div></div>
+      <div class="dr"><div class="q"><b>@yui_mama さん</b>　子どもと一緒に参加できますか</div><div class="a">ご連絡ありがとうございます！ 小学生のお子さんと一緒に参加できる「親子クラス」があります🍳<br>・12/14（日）10:00〜　残り2組<br>包丁を使わないメニューなので、初めてのお子さんも安心です。参加費は親子で1組 4,500円です。</div><div class="f"><span>教室の案内文から作成</span><span>⏸ 確認待ち</span></div></div></div>`,
+    a1:()=>`<h5>質問への返信の下書き（3件のうち2件）</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>作り置き、冷凍もできますか？</b></div><div class="a">冷凍もできます！ 3品のうち「鶏そぼろ」と「きんぴら」は冷凍向きです。小分けにして、2週間を目安に食べきってくださいね。来週の投稿で、冷凍のコツもまとめる予定です❄️</div><div class="f"><span>根拠：10/28のレシピ投稿</span><span>⏸ 確認待ち</span></div></div>
+      <div class="dr"><div class="q"><b>甘煮が煮くずれしちゃいます…</b></div><div class="a">煮くずれ、気になりますよね。コツは「水から弱火」と「面取り」の2つです。強火で一気に煮ると、外側だけ先にやわらかくなってしまいます。水曜の投稿で写真つきで紹介するので、ぜひ見てみてください🍠</div><div class="f"><span>根拠：教室のレシピ資料</span><span>⏸ 確認待ち</span></div></div></div>`,
+    a2:()=>`<h5>お礼の返信（自動で送信済み）</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>昨日のレシピ作りました。家族に好評でした</b></div><div class="a">作ってくださってうれしいです！ ご家族に好評だったなんて最高です☺️ また感想を聞かせてくださいね。</div><div class="f"><span>感想へのお礼は自動で送る設定</span><span style="color:var(--ok)">✓ 送信済み</span></div></div>
+      <div class="dr"><div class="q"><b>写真がいつもきれいで見ていて楽しいです</b></div><div class="a">ありがとうございます！ 写真は毎回、自然光で撮っています📷 これからも楽しんでもらえるとうれしいです。</div><div class="f"><span>感想へのお礼は自動で送る設定</span><span style="color:var(--ok)">✓ 送信済み</span></div></div></div>`,
+    rec:()=>`<div class="sum"><div><b>8件</b>今夜のコメント・DM</div><div><b style="color:${HEX[0]}">3件</b>申し込み希望</div><div><b style="color:${HEX[1]}">3件</b>質問</div><div><b style="color:${HEX[2]}">2件</b>感想</div></div>
+      <h5>反応の記録</h5><table class="tbl"><tr><th>内容</th><th>分類</th><th>対応</th></tr>
+      ${FLOWS[1].items.map(it=>`<tr><td>${it[0]}</td><td><span class="pill" style="background:${HEX[it[1]]}">${FLOWS[1].cats[it[1]]}</span></td><td>${it[2]}</td></tr>`).join("")}</table>
+      <h5>来週の企画へのヒント（リサーチ・企画AIへ渡しました）</h5><div class="rules">
+      <div class="rule" style="--rc:${HEX[1]}"><b>冷凍・保存の質問が多い</b><p>「冷凍できる作り置き」の投稿を企画に追加</p></div>
+      <div class="rule" style="--rc:${HEX[0]}"><b>親子で参加したい声</b><p>親子クラスの様子を、金曜の投稿で紹介</p></div>
+      <div class="rule" style="--rc:${HEX[2]}"><b>写真がほめられている</b><p>撮り方を紹介する投稿も候補に</p></div></div>`
+  }
+},
+{
+  tab:"お店・経営", title:"予約まわりの自動化フロー", sub:"カフェ こもれび ・ 予約が入るたびに自動で動く", who:"鈴木さん",
+  logSub:"予約 → 内容チェック → 準備 → 予約表とシフトに反映",
+  nodes:{
+    trig:["📅","予約が入る","Web・電話メモから"],
+    ai:["🤖","AIが内容をチェック","人数・要望・アレルギー"],
+    br:["🔀","3つに分ける",""],
+    a0:["🍰","厨房に連絡","アレルギー・特別な要望"],
+    a1:["✉️","確認とリマインド","確認メールと前日のお知らせ"],
+    a2:["🪑","席と仕込みを調整","6名以上の団体"],
+    rec:["📊","予約表に反映","シフトの人数も確認"]
+  },
+  cats:["要望あり","通常","団体"],
+  ctrNames:["要望","通常","団体"],
+  items:[
+    ["12/2（火）12:00 2名　誕生日ケーキの持ち込み希望",0,"厨房にケーキの保管を連絡"],
+    ["12/3（水）10:30 1名",1,"確認メール・前日リマインド"],
+    ["12/5（金）13:00 8名　ママ会",2,"奥の席を確保・仕込みを増量"],
+    ["12/5（金）15:00 2名　卵アレルギーあり",0,"厨房に卵なしメニューを連絡"],
+    ["12/6（土）11:00 3名",1,"確認メール・前日リマインド"],
+    ["12/7（日）12:30 10名　会社の送別会",2,"貸し切りの見積もり・シフト追加"],
+    ["12/7（日）14:00 2名",1,"確認メール・前日リマインド"],
+    ["12/8（月）10:00 4名　ベビーカーあり",0,"入口近くの席を用意"]
+  ],
+  done:"8件の予約をすべて処理しました。12/7は団体があるため、シフトに1人追加が必要です。",
+  skills:[["🧭","流れを設計する力","予約が入ってから当日まで、何をどの順で準備するか決める"],["📏","判断の基準を渡す力","何名から「団体」か、何を「要望」とするかを決めておく"],["✅","人が見る場所を決める力","アレルギーや貸し切りは、人が最後に確認する"]],
+  ask:"鈴木さんのお店で、自動で回したいのはどれですか？",
+  detail:{
+    trig:()=>`<h5>入った予約（8件）</h5><table class="tbl"><tr><th>経路</th><th>内容</th><th>お名前</th></tr>
+      ${FLOWS[2].items.map((it,i)=>`<tr><td>${i%3===2?"電話メモ":"Web予約"}</td><td>${it[0]}</td><td>${["井上さま","小川さま","岡田さま","中島さま","石井さま","前田さま","藤田さま","後藤さま"][i]}</td></tr>`).join("")}</table>
+      <div class="foot">電話で受けた予約も、メモを写真に撮れば同じ流れに入ります</div>`,
+    ai:()=>`<h5>AIがチェックした内容</h5><table class="tbl"><tr><th>予約</th><th>判断</th><th>理由</th></tr>
+      ${FLOWS[2].items.map(it=>`<tr><td>${it[0]}</td><td><span class="pill" style="background:${HEX[it[1]]}">${FLOWS[2].cats[it[1]]}</span></td><td>${it[1]===0?"アレルギー・持ち込み・設備など、準備が必要な要望あり":it[1]===1?"特別な要望なし":"6名以上。席と仕込みの調整が必要"}</td></tr>`).join("")}</table>`,
+    br:()=>`<h5>分け方のルール（人が決めたもの）</h5><div class="rules">
+      <div class="rule" style="--rc:${HEX[0]}"><b>要望あり</b><p>アレルギー・持ち込み・ベビーカー・車いすなど</p><div class="ex">→ 厨房とホールに連絡。アレルギーは店長が最終確認</div></div>
+      <div class="rule" style="--rc:${HEX[1]}"><b>通常</b><p>特別な要望がない予約</p><div class="ex">→ 確認メールを送り、前日の夕方にリマインド</div></div>
+      <div class="rule" style="--rc:${HEX[2]}"><b>団体</b><p>6名以上の予約</p><div class="ex">→ 席の確保・仕込み量の調整・シフトの確認</div></div></div>`,
+    a0:()=>`<h5>厨房・ホールへの連絡票</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>12/5（金）15:00 中島さま 2名</b></div><div class="a">⚠ <b>卵アレルギーあり</b><br>・ケーキは「卵なしのチーズケーキ」をご案内<br>・サンドイッチはマヨネーズを抜いて提供<br>・調理器具は別のものを使用<br>→ 当日の朝、店長が最終確認してください</div><div class="f"><span>アレルギー表から作成</span><span>⏸ 店長の確認待ち</span></div></div>
+      <div class="dr"><div class="q"><b>12/2（火）12:00 井上さま 2名</b></div><div class="a">🎂 <b>誕生日ケーキの持ち込み</b><br>・ケーキは11:30までに冷蔵庫（奥の段）へ<br>・食後にろうそくを用意してお出しする<br>・お皿・フォークはお店のものを2セット<br>→ ホール担当：木村さん</div><div class="f"><span>持ち込みのルールから作成</span><span style="color:var(--ok)">✓ 連絡済み</span></div></div></div>`,
+    a1:()=>`<h5>予約確認メールと、前日のリマインド</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>予約確認（送信済み）</b>　小川さま</div><div class="a">小川さま<br>カフェ こもれびです。ご予約ありがとうございます。<br>■ 12月3日（水）10:30〜　1名さま<br>モーニングは11:00までです。当日お気をつけてお越しください。<br>ご変更は、このメールへの返信でも承ります。</div><div class="f"><span>予約が入ってすぐ送信</span><span style="color:var(--ok)">✓ 送信済み</span></div></div>
+      <div class="dr"><div class="q"><b>前日のリマインド（予約済み）</b>　小川さま</div><div class="a">小川さま<br>明日 12月3日（水）10:30 のご予約、お待ちしております☕<br>店の前は駐車できないため、近くのコインパーキングをご利用ください。</div><div class="f"><span>12/2（火）17:00 に自動送信</span><span style="color:var(--ok)">✓ 予約済み</span></div></div></div>`,
+    a2:()=>`<h5>団体予約の準備</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>12/5（金）13:00 岡田さま 8名　ママ会</b></div><div class="a">🪑 奥のソファ席（8名）を確保<br>🥪 ランチプレートの仕込みを8食分追加<br>👶 子ども用の椅子を2脚用意<br>👥 シフト：この時間は3名で足ります</div><div class="f"><span>席表・仕込み表に反映</span><span style="color:var(--ok)">✓ 反映済み</span></div></div>
+      <div class="dr"><div class="q"><b>12/7（日）12:30 前田さま 10名　送別会</b></div><div class="a">🪑 12:30〜14:30 を貸し切りで仮押さえ<br>📄 貸し切りプランの見積もり（1名 2,800円 × 10名）を下書き<br>👥 シフト：<b style="color:#b91c1c">1名足りません</b> → 総務AIに追加を依頼</div><div class="f"><span>見積もりは送る前に確認</span><span>⏸ 鈴木さんの確認待ち</span></div></div></div>`,
+    rec:()=>`<div class="sum"><div><b>8件</b>今週入った予約</div><div><b style="color:${HEX[0]}">3件</b>要望あり</div><div><b style="color:${HEX[1]}">3件</b>通常</div><div><b style="color:${HEX[2]}">2件</b>団体</div></div>
+      <h5>予約表</h5><table class="tbl"><tr><th>予約</th><th>分類</th><th>準備</th></tr>
+      ${FLOWS[2].items.map(it=>`<tr><td>${it[0]}</td><td><span class="pill" style="background:${HEX[it[1]]}">${FLOWS[2].cats[it[1]]}</span></td><td>${it[2]}</td></tr>`).join("")}</table>
+      <div class="foot">⚠ 12/7（日）は団体があるため、シフトに1名追加が必要です（総務AIに連絡済み）</div>`
+  }
+}];
+
+const TIMES=["08:02","08:09","08:16","08:23","08:30","08:37","08:44","08:51"];
+const mMail=(to,sub,body,st)=>`<div class="m-mail"><div class="to">宛先：${to}</div><div class="s">${sub}</div><div class="b">${body}</div><span class="st ${st==="sent"?"sent":""}">${st==="sent"?"✓ 送信済み":st||"⏸ 確認待ち"}</span></div>`;
+const mDoc=(to,rows,total)=>`<div class="m-doc"><h6>御見積書</h6><span class="w">${to} 御中</span>${rows.map(r=>`<div class="ln"><span>${r[0]}</span><span>${r[1]}</span></div>`).join("")}<div class="tt"><span>合計</span><span>${total}</span></div><span class="st">⏸ 確認待ち</span></div>`;
+const mChat=(h,body,to)=>`<div class="m-chat"><div class="av">🤖</div><div class="bb"><div class="h">🔴 ${h}</div>${body}<div class="bt"><span>${to}さん 対応します</span><span>回す</span></div></div></div>`;
+const mDm=(u,q,a,chips,st)=>`<div class="m-dm"><div class="u"><i></i>${u}</div><div class="q">「${q}」</div><div class="a">${a}</div>${chips?`<div class="ch">${chips.map(c=>`<span>${c}</span>`).join("")}</div>`:""}<span class="st ${st==="sent"?"sent":""}">${st==="sent"?"✓ 送信済み":"⏸ 確認待ち"}</span></div>`;
+const mTk=(ic,h,lines,st)=>`<div class="m-tk"><span class="ic">${ic}</span><div class="h">${h}</div><ul>${lines.map(l=>`<li>${l}</li>`).join("")}</ul><span class="st ${st==="sent"?"sent":""}">${st==="sent"?"✓ 連絡済み":"⏸ 店長が確認"}</span></div>`;
+const mSeat=(h,n,lines)=>`<div class="m-seat"><div class="h">${h}</div><div class="g">${[...Array(12)].map((_,j)=>`<i class="${j<n?"on":""}"></i>`).join("")}</div><div class="x">${lines}</div></div>`;
+FLOWS[0].types=["通知","返信の下書き","見積書"];
+FLOWS[0].mini=[
+  ()=>mChat("急ぎ：配送の遅れ","青山工業さま「明日の朝までに必要」<br>注文 A-20431 ／ 配達は明日午後の予定","山田"),
+  ()=>mMail("北町クリニック さま","請求書の送り先変更について","いつもご利用ありがとうございます。送り先はマイページの「お客さま情報」から変更いただけます。次回の請求書から反映されます。"),
+  ()=>mDoc("みなと設計",[["コピー用紙A4 ×50箱","¥149,000"],["定期購入の値引き","−¥7,450"],["配送料","¥0"]],"¥155,705"),
+  ()=>mChat("急ぎ：プリンターの故障","さくら保育園さま「届いたが動かない」<br>機種 L-300 ／ 保証期間内","中村"),
+  ()=>mMail("東光運輸 さま","お支払い方法について","お支払いは、クレジットカード・銀行振込・口座振替からお選びいただけます。ご注文画面で「カード払い」を…"),
+  ()=>mDoc("ひまわり税理士事務所",[["デスク W1200 ×20","¥760,000"],["チェア ×20","¥300,000"],["組み立て・設置","¥0"]],"¥1,166,000"),
+  ()=>mMail("森川製作所 さま","領収書の再発行について","領収書は、マイページの「ご注文履歴」からPDFで何度でも再発行いただけます。宛名の変更も…"),
+  ()=>mMail("いずみ不動産 さま","配送の時間指定について","配送は「午前」「14〜16時」「16〜18時」からお選びいただけます。ご注文時の備考欄に…")
+];
+FLOWS[1].types=["教室の案内","質問への返信","お礼"];
+FLOWS[1].mini=[
+  ()=>mDm("@nana_cook","作り置き、冷凍もできますか？","冷凍もできます！ 鶏そぼろときんぴらは冷凍向き。2週間を目安に❄️"),
+  ()=>mDm("@mika_kitchen","12月の教室に参加したいです！","ありがとうございます！ 12月は次の日程に空きがあります🎄",["12/6(土) 残2","12/13(土) 残4","12/17(水) 残3"]),
+  ()=>mDm("@haru_gohan","家族に好評でした","作ってくださってうれしいです！ また感想を聞かせてくださいね☺️",null,"sent"),
+  ()=>mDm("@sora_712","土曜クラスはまだ空いていますか","土曜クラスは、次の日程に空きがあります！",["12/6(土) 残2","12/13(土) 残4"]),
+  ()=>mDm("@kei_home","甘煮が煮くずれしちゃいます…","コツは「水から弱火」と「面取り」の2つです。水曜の投稿で写真つきで紹介します🍠"),
+  ()=>mDm("@photo_rin","写真がいつもきれい","ありがとうございます！ 写真は毎回、自然光で撮っています📷",null,"sent"),
+  ()=>mDm("@yui_mama","子どもと一緒に参加できますか","小学生のお子さんと参加できる「親子クラス」があります🍳",["12/14(日) 親子 残2組"]),
+  ()=>mDm("@aya_bento","何日くらいもちますか","冷蔵で3日が目安です。食べる分だけ取り分けると長持ちしますよ")
+];
+FLOWS[2].types=["厨房への連絡","確認メール","団体の準備"];
+FLOWS[2].mini=[
+  ()=>mTk("🎂","12/2 12:00 井上さま 2名",["誕生日ケーキの持ち込み","11:30までに冷蔵庫の奥の段へ","食後にろうそく ／ 担当 木村"],"sent"),
+  ()=>mMail("小川さま","ご予約ありがとうございます","■ 12月3日（水）10:30〜 1名さま<br>モーニングは11:00までです。前日17時にリマインドをお送りします。","sent"),
+  ()=>mSeat("12/5 13:00 岡田さま 8名",8,"奥のソファ席を確保 ／ 仕込み +8食<br>子ども用の椅子 2脚"),
+  ()=>mTk("⚠️","12/5 15:00 中島さま 2名",["卵アレルギーあり","ケーキは卵なしのチーズケーキ","マヨネーズ抜き・器具は別"]),
+  ()=>mMail("石井さま","ご予約ありがとうございます","■ 12月6日（土）11:00〜 3名さま<br>土曜は混み合うため、5分前のご来店がおすすめです。","sent"),
+  ()=>mSeat("12/7 12:30 前田さま 10名",12,"貸し切り見積 ¥28,000（⏸ 確認待ち）<br><b>シフト 1名不足 → 追加を依頼</b>"),
+  ()=>mMail("藤田さま","ご予約ありがとうございます","■ 12月7日（日）14:00〜 2名さま<br>前日17時にリマインドをお送りします。","sent"),
+  ()=>mTk("👶","12/8 10:00 後藤さま 4名",["ベビーカーでご来店","入口近くの広い席を用意","お子さま用の取り皿"],"sent")
+];
+// ====== 人材紹介（スカウト）フロー：公式の範囲で ======
+const mScout=(ini,prof,match,msg,reply,mtg,q)=>`<div class="m-sc"><div class="u"><i>${ini[0]}</i>${ini}さん<span class="mt">マッチ ${match}%</span></div><div class="p">${prof}</div><div class="msg">${msg}</div>${reply?`<div class="rp">💬 ${reply}</div>`:""}${mtg?`<span class="mtg${q?" q":""}">${mtg}</span>`:""}</div>`;
+const mSkip=(ini,prof,why,nx)=>`<div class="m-sk"><div class="u">${ini}さん</div><div class="p">${prof}</div><div class="why">見送り：${why}</div><div class="nx">→ ${nx}</div></div>`;
+const CANDS=[
+  ["A.K","34歳","法人営業 9年","年収650万〜・都内","登録者（連絡に同意済み）",92,"新規開拓の実績と、5名のチームを率いた経験が求人の条件に合う"],
+  ["M.S","29歳","人事 5年","リモート可・年収500万〜","求人サイトのスカウト候補",74,"人事の経験は合うが、希望の働き方が今回の求人と一部違う"],
+  ["T.Y","41歳","経理 15年","大阪・年収600万〜","登録者（連絡に同意済み）",38,"経験は十分だが、希望の勤務地（大阪）の求人が今はない"],
+  ["R.N","31歳","Webマーケ 6年","年収600万〜・都内","求人サイトのスカウト候補",88,"広告運用と分析の経験が、マーケ責任者候補の条件に合う"],
+  ["H.O","27歳","営業 3年","未経験の職種にも挑戦したい","登録者（連絡に同意済み）",68,"営業経験は浅いが、希望の方向に合う求人がある"],
+  ["K.I","38歳","営業マネージャー 4年","経営に近い仕事","求人サイトのスカウト候補",90,"マネジメント経験と希望が、事業部長候補の求人に合う"],
+  ["S.F","25歳","事務 2年","都内・事務職","登録者（連絡に同意済み）",41,"求人の条件「経験5年以上」に届かない"],
+  ["Y.M","36歳","カスタマーサクセス 7年","年収550万〜","求人サイトのスカウト候補",71,"経験は合うが、年収の希望と求人の幅に少し差がある"]
+];
+FLOWS.push({
+  tab:"人材紹介", title:"夜間スカウトフロー", sub:"人材紹介 ・ 寝ているあいだに候補者を探し、朝には返信と面談がそろう", who:"担当コンサルタント",
+  night:true, times:["23:06","23:19","23:33","23:47","00:12","00:40","01:15","01:52"],
+  logSub:"候補者 → 条件と照合 → スカウト・おすすめ → 返信対応・面談設定",
+  nodes:{
+    trig:["🗂","候補者を集める","登録者と、公式スカウト機能の候補"],
+    ai:["🤖","AIが条件と照合","経験・希望・勤務地"],
+    br:["🔀","3つに分ける",""],
+    a0:["✉️","個別スカウトを送る","寝る前にまとめてOK済み"],
+    a1:["📨","おすすめ求人を送る","近い求人を3件まで"],
+    a2:["🗃","今回は見送る","理由を残して再連絡リストへ"],
+    rec:["📅","返信対応と面談設定","朝までに返信を仕分け"]
+  },
+  cats:["マッチ度 高","マッチ度 中","見送り"],
+  ctrNames:["スカウト","おすすめ","見送り"],
+  items:CANDS.map((c,i)=>[`${c[0]}さん（${c[1]}）${c[2]}`, c[5]>=85?0:c[5]>=65?1:2, c[5]>=85?"個別スカウトを送信":c[5]>=65?"おすすめ求人を送信":"見送り・再連絡リストへ"]),
+  done:"夜のうちに8人を照合しました。スカウト3通 → 返信3件、うち面談2件をカレンダーに設定。質問1件への回答は確認待ちです。",
+  finTitle:"おはようございます。夜のうちにできたこと",
+  finSub:"候補者8人を照合し、3人にスカウト、3人におすすめ求人を送りました",
+  finChips:[["📅 面談 2件 設定済み","#15803d"],["💬 返信 3件","#0f766e"]],
+  skills:[["🧭","流れを設計する力","誰を対象に、どの順番で、どこまで自動にするかを決める"],["📏","判断の基準を渡す力","「マッチ度 高」の条件や、送ってよい相手をAIに分かる言葉で決める"],["✅","人が見る場所を決める力","送る前の一括OK、面談は人が行う。大事なところは人が持つ"]],
+  ask:"いま、いちばん時間を取られているのは「探す・送る・返信・日程調整」のどれですか？",
+  types:["スカウト","おすすめ求人","見送り"],
+  mini:[
+    ()=>mScout("A.K","34歳・法人営業 9年・年収650万〜",92,"新規開拓の実績と5名のチームを率いたご経験を拝見し、ご連絡しました。IT企業の営業マネージャー候補のポジションで…","07:12「ぜひ詳しく聞きたいです」","📅 面談 11/12(水) 10:00 設定済み"),
+    ()=>mMail("M.Sさん","リモートで働ける人事職のご案内","人事5年のご経験に合う、リモート可の求人を3件お送りします。①ITベンチャーの採用担当 ②…","sent"),
+    ()=>mSkip("T.Y","41歳・経理 15年・大阪希望","希望の勤務地（大阪）の求人がいまはない","大阪の求人が出たら自動でお知らせ"),
+    ()=>mScout("R.N","31歳・Webマーケ 6年・年収600万〜",88,"広告運用と分析のご経験を拝見しました。マーケティング責任者候補のポジションについて…","06:48「年収の幅を知りたい」","⏸ 回答を下書き・確認待ち",true),
+    ()=>mMail("H.Oさん","営業経験を活かせる、新しい職種のご案内","営業3年のご経験を活かして挑戦できる、カスタマーサクセス職など3件をお送りします…","sent"),
+    ()=>mScout("K.I","38歳・営業マネージャー 4年・経営に近い仕事",90,"マネジメントのご経験と、経営に近い仕事をしたいというご希望を拝見し…","07:30「来週ならお話できます」","📅 面談 11/13(木) 19:00 設定済み"),
+    ()=>mSkip("S.F","25歳・事務 2年","求人の条件「経験5年以上」に届かない","3か月後に、条件の合う求人を再確認"),
+    ()=>mMail("Y.Mさん","カスタマーサクセス職のご案内","7年のご経験に合う求人を3件お送りします。年収の幅は面談でご相談いただけます…","sent")
+  ],
+  detail:{
+    trig:()=>`<h5>今夜の対象：連絡してよい候補者だけ（8人）</h5><table class="tbl"><tr><th>候補者</th><th>経歴</th><th>希望</th><th>どこから</th></tr>
+      ${CANDS.map(c=>`<tr><td>${c[0]}さん（${c[1]}）</td><td>${c[2]}</td><td>${c[3]}</td><td>${c[4]}</td></tr>`).join("")}</table>
+      <div class="foot">自社の登録者（連絡に同意済み）と、求人サイトの公式スカウト機能に出てくる候補だけが対象です。SNSなどから勝手に集めることはしません</div>`,
+    ai:()=>`<h5>AIが求人の条件と照合しました</h5><table class="tbl"><tr><th>候補者</th><th>マッチ度</th><th>判断</th><th>理由</th></tr>
+      ${CANDS.map(c=>{const k=c[5]>=85?0:c[5]>=65?1:2;return `<tr><td>${c[0]}さん</td><td>${c[5]}%</td><td><span class="pill" style="background:${HEX[k]}">${FLOWS[3].cats[k]}</span></td><td>${c[6]}</td></tr>`;}).join("")}</table>`,
+    br:()=>`<h5>分け方のルール（人が決めたもの）</h5><div class="rules">
+      <div class="rule" style="--rc:${HEX[0]}"><b>マッチ度 高（85%以上）</b><p>その人の経歴に合わせたスカウト文をAIが書く</p><div class="ex">→ 送る文面は寝る前に担当者がまとめてOK。公式のスカウト機能から送信</div></div>
+      <div class="rule" style="--rc:${HEX[1]}"><b>マッチ度 中（65〜84%）</b><p>近い求人を3件まで選んで、おすすめとして送る</p><div class="ex">→ 登録者へのメールで送信（配信に同意済みの人だけ）</div></div>
+      <div class="rule" style="--rc:${HEX[2]}"><b>見送り（65%未満）</b><p>今回は送らない。理由を記録する</p><div class="ex">→ 条件の合う求人が出たら、再連絡の候補に戻す</div></div></div>`,
+    a0:()=>`<h5>スカウト文（3通のうち1通）と、朝までの動き</h5><div class="drafts">
+      <div class="dr"><div class="q"><b>A.Kさん（34歳）</b>　マッチ度 92%</div><div class="a">A.K様<br>はじめまして。人材紹介の◯◯（担当：佐々木）です。<br>法人営業9年のご経験の中でも、とくに新規開拓の実績と、5名のチームを率いてこられた点を拝見し、ご連絡しました。<br>現在、成長中のIT企業で「営業マネージャー候補」を募集しています（想定年収700〜850万円・都内）。A.K様のご経験がまさに活きるポジションだと考えています。<br>まずは15分ほど、オンラインでお話を聞いていただけませんか。</div><div class="f"><span>23:00 に担当者がまとめてOK</span><span style="color:var(--ok)">✓ 23:06 送信済み</span></div></div>
+      <div class="dr"><div class="q"><b>朝までの動き</b></div><div class="a">🌙 23:06　スカウトを送信<br>☀ 07:12　返信「ぜひ詳しく聞きたいです」<br>🤖 07:13　AIが前向きな返信と判断し、空いている日時を3つ案内<br>☀ 07:26　候補者が「11/12(水) 10:00」を選択<br>📅 07:26　カレンダーに面談を登録、オンライン会議のリンクを送付</div><div class="f"><span>面談は担当者が行います</span><span style="color:var(--ok)">✓ 面談設定済み</span></div></div></div>`,
+    a1:()=>`<h5>おすすめ求人のメール（3通のうち1通）</h5><div class="drafts">
+      <div class="dr" style="grid-column:1/-1"><div class="q"><b>M.Sさん（29歳）</b>　人事 5年・リモート希望</div><div class="a">M.S様<br>いつもご登録ありがとうございます。人材紹介の◯◯です。<br>人事5年のご経験と「リモートで働きたい」というご希望に合う求人を、3件お送りします。<br>① ITベンチャーの採用担当（フルリモート・年収480〜600万円）<br>② 教育サービス会社の人事企画（週3リモート・年収500〜620万円）<br>③ 医療系スタートアップの人事（週2出社・年収520〜650万円）<br>気になる求人があれば、このメールにご返信ください。</div><div class="f"><span>配信に同意済みの登録者へ</span><span style="color:var(--ok)">✓ 23:19 送信済み</span></div></div></div>`,
+    a2:()=>`<h5>今回は見送った候補者</h5><table class="tbl"><tr><th>候補者</th><th>見送った理由</th><th>次の動き</th></tr>
+      <tr><td>T.Yさん（41歳）経理 15年</td><td>希望の勤務地（大阪）の求人がいまはない</td><td>大阪の求人が出たら、再連絡の候補に戻す</td></tr>
+      <tr><td>S.Fさん（25歳）事務 2年</td><td>求人の条件「経験5年以上」に届かない</td><td>3か月後に、条件の合う求人を再確認</td></tr></table>
+      <div class="foot">合わない人に無理に送らないことで、スカウトが「迷惑な連絡」になるのを防ぎます</div>`,
+    rec:()=>`<div class="sum"><div><b>8人</b>照合した候補者</div><div><b style="color:${HEX[0]}">3通</b>個別スカウト</div><div><b style="color:var(--ok)">3件</b>朝までの返信</div><div><b style="color:var(--ok)">2件</b>面談を設定</div></div>
+      <h5>朝までに届いた返信</h5><table class="tbl"><tr><th>時刻</th><th>候補者</th><th>返信</th><th>AIの対応</th></tr>
+      <tr><td>06:48</td><td>R.Nさん</td><td>年収の幅を知りたい</td><td>求人票から回答を下書き（⏸ 確認待ち）</td></tr>
+      <tr><td>07:12</td><td>A.Kさん</td><td>ぜひ詳しく聞きたいです</td><td>日程を案内 → 11/12(水) 10:00 に面談設定</td></tr>
+      <tr><td>07:30</td><td>K.Iさん</td><td>来週ならお話できます</td><td>来週の空きを案内 → 11/13(木) 19:00 に面談設定</td></tr></table>
+      <h5>今週のカレンダー</h5><div class="cal">
+        <div class="hd"></div>${["11/10(月)","11/11(火)","11/12(水)","11/13(木)","11/14(金)"].map(d=>`<div class="hd">${d}</div>`).join("")}
+        <div class="tm">10:00</div><div class="busy">社内会議</div><div></div><div class="ev">面談 A.Kさん</div><div></div><div class="busy">企業訪問</div>
+        <div class="tm">14:00</div><div></div><div class="busy">企業訪問</div><div></div><div></div><div></div>
+        <div class="tm">19:00</div><div></div><div></div><div></div><div class="ev">面談 K.Iさん</div><div></div></div>
+      <div class="foot">面談は担当者が行います。AIがやるのは、探す・下書き・日程の調整まで</div>`
+  }
+});
+
+const card=(F,i,ph)=>{ const it=F.items[i], k=it[1];
+  return `<div class="oc${ph?" ph":""}"><div class="oh"><span>${(F.times||TIMES)[i]}</span><span class="tg" style="background:${HEX[k]}">${F.cats[k]}</span><span class="ty">${F.types[k]}</span></div><div class="ob">${F.mini[i]()}</div></div>`; };
+
+// ====== 画面づくり ======
+function renderTabs(){
+  $("kmax").textContent=FLOWS.length;
+  $("tabs").innerHTML=FLOWS.map((f,i)=>`<button class="tab${i===cur?" on":""}" data-i="${i}"><kbd>${i+1}</kbd>${f.tab}</button>`).join("");
+  $("tabs").querySelectorAll(".tab").forEach(b=>b.onclick=()=>{cur=+b.dataset.i;reset();});
+}
+function edgePath(a,b){
+  const A=POS[a],B=POS[b];
+  const x1=A.x+A.w, y1=A.y+A.h/2, x2=B.x, y2=B.y+B.h/2, dx=Math.max(30,(x2-x1)/2);
+  return `M${x1} ${y1} C${x1+dx} ${y1}, ${x2-dx} ${y2}, ${x2} ${y2}`;
+}
+function fit(){
+  const cv=$("cv"), W=1000, H=560, top=56;
+  const s=Math.min((cv.clientWidth-30)/W,(cv.clientHeight-top-14)/H,1.3);
+  $("stage").style.transform=`translate(${(cv.clientWidth-W*s)/2}px,${top+((cv.clientHeight-top)-H*s)/2}px) scale(${s})`;
+}
+let counts={};
+function reset(){
+  timers.forEach(clearTimeout); timers=[]; rafs.forEach(cancelAnimationFrame); rafs=[]; runId++;
+  state="idle"; closeModal(); document.querySelectorAll(".fly").forEach(f=>f.remove()); $("fin").classList.remove("in"); $("fin").innerHTML="";
+  const F=FLOWS[cur];
+  renderTabs();
+  $("fTitle").textContent=F.title; $("fSub").textContent=F.sub;
+  $("sw").classList.remove("on"); $("swTxt").textContent="自動実行 OFF";
+  $("cv").classList.remove("night","morning"); $("cv").classList.toggle("hasclock",!!F.night); $("clk").textContent=F.night?"23:00":""; $("clock").firstChild.textContent="🌙 ";
+  $("cv").classList.remove("done");
+  $("sdSub").textContent=F.logSub;
+  counts={all:0,k0:0,k1:0,k2:0};
+  renderCtr();
+  $("log").innerHTML=`<div class="lempty"><kbd>Enter</kbd> で自動実行をONにすると<br>できあがったものがここに並びます</div>`;
+  $("sdFt").className="sd-ft"; $("sdFt").textContent="まだ動いていません";
+  const edges=EDGES.map(([a,b],i)=>`<path class="edge" id="e${i}" d="${edgePath(a,b)}"/>`).join("");
+  const labs=[0,1,2].map(k=>{const y=[197,271,377][k];return `<div class="elab" style="--ec:${HEX[k]};left:601px;top:${y}px">${F.cats[k]}</div>`;}).join("");
+  const nodes=Object.keys(POS).map(k=>{const P=POS[k],n=F.nodes[k];const cls=k.startsWith("a")?"act"+k[1]:k;
+    return `<div class="node ${cls}" id="n_${k}" style="left:${P.x}px;top:${P.y}px;width:${P.w}px;height:${P.h}px">
+      <div class="ic">${n[0]}</div><div><b>${n[1]}</b>${n[2]?`<small>${n[2]}</small>`:""}</div>
+      <span class="cnt" id="c_${k}">0</span>${k==="ai"?`<div class="peek" id="peek"></div>`:""}<span class="opn">開く ↗</span></div>`;}).join("");
+  $("stage").innerHTML=`<svg class="edges" viewBox="0 0 1000 560">${edges}<g id="tokens"></g></svg>${labs}${nodes}`;
+  Object.keys(POS).forEach(k=>{$("n_"+k).onclick=()=>{ if(state==="done"||state==="back") openNode(k); };});
+  $("back").classList.remove("in");
+  $("back").innerHTML=`<h3>この仕組みを動かしているのは、3つの力です</h3>
+    <div class="lead">AIが勝手に回しているように見えて、流れとルールは人が決めています</div>
+    <div class="skills">${F.skills.map(s=>`<div class="sk"><span>${s[0]}</span><b>${s[1]}</b><p>${s[2]}</p></div>`).join("")}</div>
+    <div class="ask">${F.ask}</div>`;
+  fit();
+}
+function renderCtr(){
+  const F=FLOWS[cur];
+  $("ctr").innerHTML=`<div><b>${counts.all}</b>処理した</div>${[0,1,2].map(k=>`<div class="k${k}"><b>${counts["k"+k]}</b>${F.ctrNames[k]}</div>`).join("")}`;
+}
+function flash(k){ const n=$("n_"+k); n.classList.add("flash"); setTimeout(()=>n.classList.remove("flash"),420); }
+function bump(k){ const c=$("c_"+k); c.textContent=(+c.textContent)+1; c.classList.add("on"); }
+function travel(ei, dur, color, done){
+  const p=$("e"+ei), L=p.getTotalLength();
+  const tok=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  tok.setAttribute("r","7"); tok.setAttribute("fill",color); tok.setAttribute("stroke","#fff"); tok.setAttribute("stroke-width","2.5");
+  tok.style.filter=`drop-shadow(0 0 6px ${color})`;
+  $("tokens").appendChild(tok);
+  p.classList.add("hot"); p.style.setProperty("--ec",color);
+  const t0=performance.now(), id=runId; let fin=false;
+  const step=now=>{
+    if(fin) return;
+    const t=Math.min(1,(now-t0)/dur), e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, pt=p.getPointAtLength(L*e);
+    tok.setAttribute("cx",pt.x); tok.setAttribute("cy",pt.y);
+    if(t<1) rafs.push(requestAnimationFrame(step));
+  };
+  rafs.push(requestAnimationFrame(step));
+  // 終わりは時間で決める（画面の描画が止まっていても、処理は必ず最後まで進む）
+  at(dur, ()=>{ if(id!==runId) return; fin=true; tok.remove(); at(120,()=>p.classList.remove("hot")); done&&done(); });
+}
+function addRow(F,it,i){
+  const lg=$("log"); if(lg.querySelector(".lempty")) lg.innerHTML="";
+  const k=it[1], big=i<2, id=runId;
+  // 右の棚に場所をとっておく（見えない）
+  const holder=document.createElement("div"); holder.innerHTML=card(F,i,true); const slot=holder.firstElementChild;
+  lg.prepend(slot); lg.scrollTop=0;
+  const sr=slot.getBoundingClientRect(), nr=$("n_a"+k).getBoundingClientRect(), cr=$("cv").getBoundingClientRect();
+  const f=document.createElement("div"); f.className="fly"; f.innerHTML=card(F,i,false);
+  f.style.width=sr.width+"px";
+  f.style.left=(nr.left+nr.width/2-sr.width/2)+"px"; f.style.top=(nr.top+nr.height/2-62)+"px";
+  f.style.transform="scale(.2)"; f.style.opacity="0";
+  document.body.appendChild(f); void f.offsetWidth;
+  if(big){ // 最初の2件は、真ん中に大きく見せてから棚へ
+    f.style.opacity="1"; f.style.left=(cr.left+cr.width/2-sr.width/2)+"px"; f.style.top=(cr.top+cr.height/2-62)+"px"; f.style.transform="scale(1.9)";
+  } else {
+    f.style.opacity="1"; f.style.top=(nr.top-130)+"px"; f.style.transform="scale(1.15)";
+  }
+  at(big?1500:450, ()=>{ f.style.left=sr.left+"px"; f.style.top=sr.top+"px"; f.style.transform="scale(1)"; });
+  at(big?2120:1070, ()=>{ f.remove(); if(id!==runId) return; slot.classList.remove("ph"); slot.classList.add("land"); });
+}
+function runItem(F,it,i,speed){
+  const k=it[1], col=HEX[k], neutral="#6366f1";
+  bump("trig"); flash("trig");
+  travel(0, 520*speed, neutral, ()=>{
+    flash("ai"); const pk=$("peek"); pk.innerHTML=`読んでいます：<br>「${it[0]}」<br>→ <em>${F.cats[k]}</em>`; pk.classList.add("on");
+    at(380*speed, ()=>{ pk.classList.remove("on"); bump("ai");
+      travel(1, 420*speed, neutral, ()=>{ flash("br");
+        travel(2+k, 520*speed, col, ()=>{ flash("a"+k); bump("a"+k); counts["k"+k]++; counts.all++; renderCtr(); addRow(F,it,i);
+          travel(5+k, 520*speed, col, ()=>{ flash("rec"); bump("rec"); });
+        });
+      });
+    });
+  });
+}
+function start(){
+  if(state!=="idle") return;
+  state="running";
+  const F=FLOWS[cur];
+  $("sw").classList.add("on"); $("swTxt").textContent="自動実行 ON";
+  if(F.night){ $("cv").classList.add("night"); $("clk").textContent="23:00"; }
+  $("log").innerHTML=`<div class="lempty">届くのを待っています…</div>`;
+  $("sdFt").textContent="動いています…";
+  // 最初の1件はゆっくり、あとは次々に
+  let t=700; const gaps=[0,3700,3000,1000,850,750,700,650];
+  F.items.forEach((it,i)=>{ t+=gaps[i]; const sp=i===0?1.4:i===1?1.1:.8; at(t,()=>{ if(F.night) $("clk").textContent=F.times[i]; runItem(F,it,i,sp); }); });
+  if(F.night){
+    ["03:00","05:00","06:48","07:12","07:30"].forEach((c,j)=>at(t+1500+j*220,()=>$("clk").textContent=c));
+    at(t+2700,()=>{ $("cv").classList.remove("night"); $("cv").classList.add("morning"); $("clock").firstChild.textContent="☀ "; });
+  }
+  at(t+3200,()=>{ state="done"; $("cv").classList.add("done"); $("sdFt").className="sd-ft ok"; $("sdFt").textContent="✓ "+F.done; showFin(); });
+}
+function showFin(){
+  const F=FLOWS[cur], cnt=[0,1,2].map(k=>F.items.filter(it=>it[1]===k).length);
+  const holdN=F.items.filter((it,i)=>/⏸/.test(F.mini[i]())).length;
+  $("fin").innerHTML=`<div class="fin-hd"><div><h3>${F.finTitle||"自動でできあがったもの"}</h3><small>${F.finSub||F.title+" ・ 届いた"+F.items.length+"件を、人の手を使わずに処理しました"}</small></div>
+    <div class="chips">${(F.finChips||[]).map(c=>`<span style="background:${c[1]}">${c[0]}</span>`).join("")}${[0,1,2].map(k=>`<span style="background:${HEX[k]}">${F.types[k]} ${cnt[k]}</span>`).join("")}</div><button class="cls" id="finX">フロー図に戻る</button></div>
+    <div class="fin-g">${F.items.map((it,i)=>`<div class="cell" data-k="${it[1]}" style="transition-delay:${i*70}ms">${card(F,i,false)}</div>`).join("")}</div>
+    <div class="fin-ft"><b>⏸ ${holdN}件は${F.who}の確認待ち</b>${F.items.length-holdN?` ／ 残り${F.items.length-holdN}件は送信・連絡まで完了`:""} ／ クリックで中身を表示 ／ <kbd>Enter</kbd> で裏側へ</div>`;
+  $("fin").querySelectorAll(".cell").forEach(c=>c.onclick=()=>openNode("a"+c.dataset.k));
+  $("finX").onclick=()=>$("fin").classList.remove("in");
+  void $("fin").offsetWidth; $("fin").classList.add("in");
+}
+function closeModal(){ $("modal").classList.remove("in"); }
+function openNode(k){
+  const F=FLOWS[cur], n=F.nodes[k];
+  $("sheet").innerHTML=`<div class="sh-hd"><div class="ic">${n[0]}</div><b>${n[1]}</b><small>${n[2]}</small><span class="x">Esc / 外側クリックで閉じる</span></div><div class="sh-bd">${F.detail[k]()}</div>`;
+  $("modal").classList.add("in");
+}
+$("modal").onclick=e=>{ if(e.target.id==="modal") closeModal(); };
+$("sw").onclick=()=>start();
+document.addEventListener("keydown",e=>{
+  if($("modal").classList.contains("in")){ if(e.key==="Escape"||e.key==="Enter"){ e.preventDefault(); closeModal(); } return; }
+  if(e.key==="Enter"){ e.preventDefault();
+    if(state==="idle") start();
+    else if(state==="done"){ state="back"; $("back").classList.add("in"); }
+    else if(state==="back"){ state="done"; $("back").classList.remove("in"); }
+  } else if(/^[1-9]$/.test(e.key) && +e.key<=FLOWS.length){ cur=+e.key-1; reset(); }
+  else if(e.key==="r"||e.key==="R"){ reset(); }
+});
+window.addEventListener("resize",fit);
+reset();
+</script>
+</body>
+</html>
